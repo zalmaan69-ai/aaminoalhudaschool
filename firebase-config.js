@@ -5,13 +5,13 @@
 // Load config from window.APP_CONFIG (defined in config.js)
 // DO NOT EDIT THE BLOCK BELOW. It will automatically use the real keys from config.js.
 const firebaseConfig = window.APP_CONFIG?.FIREBASE || {
-    apiKey: "MISSING_CONFIG_JS_FILE", // This is only a backup. Real key is in config.js
-    authDomain: "PROJECT_NOT_SET",
-    projectId: "PROJECT_NOT_SET",
-    storageBucket: "PROJECT_NOT_SET",
-    messagingSenderId: "12345",
-    appId: "12345",
-    measurementId: "12345"
+    apiKey: "AIzaSyBEVNs8bQGi0IFeukLZOHMqTcOBV-OYMH0",
+    authDomain: "al-hudaschool-b3e7b.firebaseapp.com",
+    projectId: "al-hudaschool-b3e7b",
+    storageBucket: "al-hudaschool-b3e7b.firebasestorage.app",
+    messagingSenderId: "492870311296",
+    appId: "1:492870311296:web:34f1cbc4e1656fac98f565",
+    measurementId: "G-25CLFP6WSP"
 };
 window.firebaseConfig = firebaseConfig; // Expose for App.js check
 
