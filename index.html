@@ -173,9 +173,9 @@
                             style="width: 12px; height: 12px; color: #059669; margin-left: 4px;"></i>
                     </div>
 
-                    <div class="avatar-circle">A</div>
+                    <div class="avatar-circle">M</div>
                     <div class="user-info">
-                        <span class="user-name" id="principal-name-display">abdulahi abdi</span>
+                        <span class="user-name" id="principal-name-display">maxamed maxamed abdi</span>
                         <span class="user-role">Principal</span>
                     </div>
                 </div>
@@ -351,59 +351,6 @@
                     <button type="button" class="btn" style="background:#f3f4f6; color:#4b5563;"
                         id="cancel-add-teacher">Cancel</button>
                     <button type="submit" class="btn btn-primary" style="background: var(--color-sidebar-bg);">Save
-                        Teacher</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Edit Teacher Modal -->
-    <div id="edit-teacher-modal" class="modal-overlay hidden">
-        <div class="modal-content animate-fade-in">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-bold" style="color: var(--color-primary-text);">Edit Teacher</h3>
-                <button id="close-edit-teacher" style="background:none; border:none; cursor:pointer; color:#9ca3af;"><i
-                        data-feather="x"></i></button>
-            </div>
-            <form id="edit-teacher-form">
-                <input type="hidden" name="id" id="edit-teacher-id">
-                <div class="mb-4">
-                    <label class="block text-sm font-medium mb-1">Full Name</label>
-                    <input type="text" name="name" id="edit-teacher-name" class="form-input" required>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium mb-1">Phone Number</label>
-                    <input type="tel" name="phone" id="edit-teacher-phone" class="form-input" required>
-                </div>
-                <div class="flex gap-4 mb-6">
-                    <div style="flex:1;">
-                        <label class="block text-sm font-medium mb-1">Gender</label>
-                        <select name="gender" id="edit-teacher-gender" class="form-input">
-                            <option>Male</option>
-                            <option>Female</option>
-                        </select>
-                    </div>
-                    <div style="flex:1;">
-                        <label class="block text-sm font-medium mb-1">Subject</label>
-                        <select name="subject" id="edit-teacher-subject" class="form-input">
-                            <option>Mathematics</option>
-                            <option>Science</option>
-                            <option>English</option>
-                            <option>Somali</option>
-                            <option>Arabic</option>
-                            <option>Islamic Studies</option>
-                            <option>Social Studies</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="mb-6">
-                    <label class="block text-sm font-medium mb-1">Salary ($)</label>
-                    <input type="number" name="salary" id="edit-teacher-salary" class="form-input" step="0.01">
-                </div>
-                <div class="flex justify-end gap-3">
-                    <button type="button" class="btn" style="background:#f3f4f6; color:#4b5563;"
-                        id="cancel-edit-teacher">Cancel</button>
-                    <button type="submit" class="btn btn-primary" style="background: var(--color-sidebar-bg);">Update
                         Teacher</button>
                 </div>
             </form>

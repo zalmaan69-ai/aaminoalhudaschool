@@ -16,6 +16,7 @@ const App = {
         currentExamsGrade: null,
         currentExamsSection: null,
         currentExamsSubject: null,
+        currentExamsStudentId: null, // Added to track student mark entry
         currentExamsTerm: 'Midterm', // Default term
         showFreeStudents: false,
         currentUserRole: null, // 'admin' or 'teacher'
@@ -23,7 +24,14 @@ const App = {
     },
 
     async init() {
-        await Store.init();
+        try {
+            console.log('🚀 Application starting...');
+            await Store.init();
+        } catch (e) {
+            console.error('⚠️ Critical: Store initialization failed:', e);
+            // App continues to checkAuth/showLogin even if Store has partial failure
+        }
+
         this.checkAuth();
         this.setupEventListeners();
 
@@ -166,7 +174,7 @@ const App = {
 
         // Modals
         const closeModals = (id) => this.toggleModal(id, false);
-        ['modal-container', 'edit-student-modal', 'att-modal-container', 'add-teacher-modal', 'edit-teacher-modal', 'leadership-modal'].forEach(id => {
+        ['modal-container', 'edit-student-modal', 'att-modal-container'].forEach(id => {
             const el = document.getElementById(id);
             if (el) {
                 el.addEventListener('click', (e) => { if (e.target === el) closeModals(id); });
@@ -402,19 +410,16 @@ const App = {
 
         navItems.forEach(item => {
             const view = item.getAttribute('data-view');
-            const user = JSON.parse(sessionStorage.getItem('dugsiga_user'));
-            const permissions = user?.permissions || {};
 
-            if (role === 'owner' || role === 'admin' || permissions.admin) {
-                item.style.display = 'flex';
-            } else if (view === 'attendance' && permissions.attendance) {
-                item.style.display = 'flex';
-            } else if (view === 'fees' && permissions.fees) {
-                item.style.display = 'flex';
-            } else if (view === 'exams' && permissions.exams) {
-                item.style.display = 'flex';
-            } else {
-                item.style.display = 'none';
+            if (role === 'owner') {
+                item.style.display = 'flex'; // Owner sees EVERYTHING
+            } else if (role === 'principal') {
+                // Principal sees everything but Users & Settings
+                item.style.display = (view !== 'users') ? 'flex' : 'none';
+            } else if (role === 'teacher') {
+                item.style.display = (view === 'attendance') ? 'flex' : 'none';
+            } else if (role === 'fees') {
+                item.style.display = (view === 'fees') ? 'flex' : 'none';
             }
         });
 
@@ -571,114 +576,6 @@ const App = {
         this.refreshCurrentView();
     },
 
-    renderDashboard(container) {
-        const students = Store.getStudents();
-        const teachers = Store.getTeachers();
-
-        // --- Dashboard Numbers (Exact targets) ---
-        const totalStudents = students.length;
-        const maleStudents = students.filter(s => s.gender === 'Male').length;
-        const femaleStudents = students.filter(s => s.gender === 'Female').length;
-        const graduatedCount = students.filter(s => s.grade === 'Form 4').length; // Form 4 only
-
-        // Finance targets
-        const totalSalaries = 1000; // 4 * 250
-        const expectedRevenue = 2080;
-        const collectedRevenueTotal = 1480;
-        const pendingRevenue = expectedRevenue - collectedRevenueTotal; // $600
-
-        // Attendance targets
-        const presentToday = 96;
-        const absentToday = 15;
-        const lateToday = 9;
-
-        container.innerHTML = `
-            <div class="animate-fade-in" style="max-width: 1400px; margin: 0 auto; padding: 1rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-                    <h1 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Dashboard</h1>
-                </div>
-
-                <!-- STUDENT INFORMATION -->
-                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">Student Information</p>
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
-                    ${this.createStatCard('Total Students', totalStudents, 'users', '#3b82f6')}
-                    ${this.createStatCard('Male Students', maleStudents, 'arrow-up', '#3b82f6')}
-                    ${this.createStatCard('Female Students', femaleStudents, 'heart', '#ec4899')}
-                    ${this.createStatCard('Graduated Students', graduatedCount, 'award', '#f59e0b')}
-                </div>
-
-                <!-- TEACHER & STAFF -->
-                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">Teacher & Staff</p>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
-                    ${this.createStatCard('Total Teachers', teachers.length, 'briefcase', '#10b981')}
-                    ${this.createStatCard('Total Teachers & Staff Salaries', `$${totalSalaries.toFixed(2)}`, 'dollar-sign', '#ef4444')}
-                </div>
-
-                <!-- ATTENDANCE INFORMATION -->
-                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">Attendance Information</p>
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
-                    ${this.createStatCard('All Total Attendance', students.length, 'box', '#6366f1')}
-                    ${this.createStatCard('Present Today', presentToday, 'check-circle', '#10b981')}
-                    ${this.createStatCard('Absent Today', absentToday, 'x-circle', '#ef4444')}
-                    ${this.createStatCard('Late Students', lateToday, 'clock', '#f59e0b')}
-                </div>
-
-                <!-- FINANCIAL INFORMATION -->
-                <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 1rem; letter-spacing: 0.05em;">Financial Information</p>
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
-                    <div class="stat-card">
-                        <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Total Collected This Month</p>
-                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$1500.00</h3>
-                    </div>
-                    <div class="stat-card">
-                        <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Total Paid This Month</p>
-                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$1000.00</h3>
-                    </div>
-                    <div class="stat-card">
-                        <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Pending Revenue</p>
-                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$${pendingRevenue.toFixed(2)}</h3>
-                    </div>
-                    <div class="stat-card">
-                        <p style="color:#6b7280; font-size:0.8rem; font-weight:600; margin-bottom:4px;">Expected Revenue</p>
-                        <h3 style="font-size:1.5rem; font-weight:700; color:#111827;">$${expectedRevenue.toFixed(2)}</h3>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="card glass-card">
-                            <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">Attendance Trend (Last 7 Days)</h3>
-                            <canvas id="attendanceChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        this.renderCharts();
-        feather.replace();
-    },
-
-    // Unified Dashboard Logic Moved to Top
-    changeRevenuePeriod(period) {
-        this.state.revenuePeriod = period;
-        this.refreshCurrentView();
-    },
-
-
-    createStatCard(title, value, icon, color) {
-        return `
-            <div class="stat-card glass-card" style="display: flex; justify-content: space-between; align-items: start; padding: 1.5rem;">
-                <div>
-                    <h4 style="font-size: 0.875rem; color: #6b7280; font-weight: 500; margin-bottom: 0.5rem;">${title}</h4>
-                    <span style="font-size: 1.5rem; font-weight: 700; color: #1f2937;">${value}</span>
-                </div>
-                <div style="background: ${color}; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px -1px ${color}40;">
-                    <i data-feather="${icon}" style="color: white; width: 24px; height: 24px;"></i>
-                </div>
-            </div>
-        `;
-    },
     // Salary
 
 
@@ -695,36 +592,45 @@ const App = {
                         <button onclick="App.openAddTeacherModal()" class="btn btn-primary">
                             <i data-feather="plus"></i> Add Teacher
                         </button>
+                        <button class="btn btn-success">
+                             <i data-feather="upload"></i> Import CSV
+                        </button>
                     </div>
                 </div>
 
                 <div class="table-container">
+                    <div style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">
+                        <h3 class="font-bold text-lg">All Teachers</h3>
+                    </div>
                      <div class="table-responsive">
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th style="width: 50px;">#</th>
+                                    <th>ID</th>
                                     <th>Name</th>
                                     <th>Phone</th>
                                     <th>Gender</th>
                                     <th>Salary</th>
                                     <th>Subject</th>
-                                    <th style="text-align:right;">Action</th>
+                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${teachers.map((t, i) => `
+                                ${teachers.map(t => `
                                     <tr>
-                                        <td class="font-medium">${i + 1}</td>
+                                        <td class="font-medium">${t.id}</td>
                                         <td>
-                                            <div class="font-medium" style="color:#111827;">${t.name}</div>
+                                            <div class="font-medium" style="color:#000;">${t.name}</div>
                                         </td>
                                         <td>${t.phone}</td>
-                                        <td><span class="badge ${t.gender === 'Female' ? 'badge-pink' : 'badge-blue'}" style="background: ${t.gender === 'Female' ? '#fdf2f8' : '#eff6ff'}; color: ${t.gender === 'Female' ? '#db2777' : '#2563eb'}; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;">${t.gender}</span></td>
-                                        <td style="font-weight: 600;">$${(t.salary || 0).toFixed(2)}</td>
+                                        <td>${t.gender}</td>
+                                        <td>$${(t.salary || 0).toFixed(2)}</td>
                                         <td><span class="badge badge-neutral">${t.subject}</span></td>
-                                        <td style="text-align: right;">
-                                            <div class="flex gap-2 justify-end">
+                                        <td>
+                                            <div class="flex gap-2">
+                                                <button class="btn btn-view" onclick="alert('View profile feature coming soon')">
+                                                    <i data-feather="eye" style="width:14px; height:14px;"></i> View
+                                                </button>
                                                 <button class="btn btn-edit" onclick="App.openEditTeacherModal('${t.id}')">
                                                     <i data-feather="edit-2" style="width:14px; height:14px;"></i> Edit
                                                 </button>
@@ -743,25 +649,6 @@ const App = {
             </div>
         `;
         feather.replace();
-    },
-
-    openEditTeacherModal(id) {
-        const teachers = Store.getTeachers();
-        const teacher = teachers.find(t => t.id === id);
-        if (!teacher) return;
-
-        const editId = document.getElementById('edit-teacher-id');
-        const editName = document.getElementById('edit-teacher-name');
-
-        if (editId) editId.value = teacher.id;
-        if (editName) editName.value = teacher.name;
-
-        document.getElementById('edit-teacher-phone').value = teacher.phone;
-        document.getElementById('edit-teacher-gender').value = teacher.gender;
-        document.getElementById('edit-teacher-subject').value = teacher.subject;
-        document.getElementById('edit-teacher-salary').value = teacher.salary;
-
-        this.toggleModal('edit-teacher-modal', true);
     },
 
     renderAssignments(container) {
@@ -907,194 +794,73 @@ const App = {
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in" id="create-exam-modal" style="backdrop-filter: blur(4px);">
                 <div class="bg-white rounded-xl p-8 w-full max-w-md shadow-2xl animate-scale-in">
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-bold text-gray-800">Create New Exam</h2>
-                        <button onclick="document.getElementById('create-exam-modal').remove()" class="text-gray-500 hover:text-gray-700">
-                            <i data-feather="x"></i>
-                        </button>
-                    </div>
-                    <form id="create-exam-form" class="space-y-5">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Exam Name</label>
-                            <input type="text" name="name" class="form-input w-full rounded-lg border-gray-300" required placeholder="e.g. Midterm 2026">
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-1">Type</label>
-                                <select name="type" class="form-input w-full rounded-lg border-gray-300">
-                                    <option>Teacher-based</option>
-                                    <option>School Import</option>
-                                    <option>Final</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-1">Term</label>
-                                <select name="term" class="form-input w-full rounded-lg border-gray-300">
-                                    <option>Term 1</option>
-                                    <option>Term 2</option>
-                                    <option>Final</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-1">Weight (%)</label>
-                                <input type="number" name="weight" class="form-input w-full rounded-lg border-gray-300" value="100" min="0" max="100">
-                            </div>
-                             <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-1">Status</label>
-                                <select name="status" class="form-input w-full rounded-lg border-gray-300">
-                                    <option>Open</option>
-                                    <option>Locked</option>
-                                </select>
-                            </div>
-                        </div>
-                         <div class="flex justify-end gap-3 mt-8">
-                            <button type="button" class="btn btn-ghost text-gray-600 hover:bg-gray-100 rounded-lg px-4 py-2" onclick="document.getElementById('create-exam-modal').remove()">Cancel</button>
-                            <button type="submit" class="btn btn-primary bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-2 shadow-lg">Create Exam</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        feather.replace();
+    renderExams(container) {
+        if (this.state.currentExamsStudentId) {
+            return this.renderStudentExamMarks(container);
+        }
+        if (this.state.currentExamsSection) {
+            return this.renderExamsStudents(container);
+        }
+        if (this.state.currentExamsGrade) {
+            return this.renderExamsSections(container);
+        }
 
-        document.getElementById('create-exam-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const newExam = {
-                id: 'EXAM-' + Date.now(),
-                name: formData.get('name'),
-                type: formData.get('type'),
-                term: formData.get('term'),
-                weight: parseFloat(formData.get('weight')),
-                subjects: 3, // Default as per image 
-                students: 0,
-                status: formData.get('status'),
-                date: new Date().toISOString()
-            };
-            Store.addExam(newExam);
-            document.getElementById('create-exam-modal').remove();
-            App.refreshCurrentView();
-            App.showToast('Exam created successfully');
-        });
-    },
-
-    openExamMarks(id) {
-        alert('Marks entry interface coming soon for Exam ' + id);
-    },
-
-    openExamResults(id) {
-        alert('Results view coming soon for Exam ' + id);
-    },
-
-    lockExam(id) {
-        Store.updateExam(id, { status: 'Locked' });
-        App.refreshCurrentView();
-        App.showToast('Exam locked successfully');
-    },
-
-    renderExamsGradeFolders(container) {
         const grades = ["Form 1", "Form 2", "Form 3", "Form 4"];
-        const students = Store.getStudents();
         container.innerHTML = `
-            <div style="">
-                <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+            < div class="animate-fade-in" >
+                <div class="flex justify-between items-center mb-6">
                     <div>
-                        <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Exam Management</h2>
-                        <p style="color: #6b7280; font-size: 0.85rem;">Select a grade to manage examination records.</p>
+                        <h2 class="text-2xl font-bold" style="color: var(--color-primary-text);">Exam Management</h2>
+                        <p class="text-secondary-text">Select a Grade to manage exams</p>
                     </div>
-                    <span style="background: #eef2ff; color: #6366f1; font-weight: 700; padding: 6px 16px; border-radius: 99px; font-size: 0.875rem; border: 1px solid #c7d2fe;">
-                        Total Forms: ${grades.length}
-                    </span>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5rem;">
-                    ${grades.map(grade => {
-            const count = students.filter(s => s.grade === grade).length;
-            return `
-                        <div onclick="App.openExamsGrade('${grade}')" class="glass-card" style="padding: 2rem; cursor: pointer; transition: all 0.3s ease; text-align: center; border: 1px solid #f3f4f6;">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    ${grades.map(grade => `
+                        <div onclick="App.openExamsGrade('${grade}')" class="glass-card p-6 cursor-pointer hover:shadow-lg transition-all text-center">
                             <div style="width: 64px; height: 64px; background: #fff7ed; color: #f97316; border-radius: 16px; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center;">
                                 <i data-feather="folder" style="width: 32px; height: 32px;"></i>
                             </div>
-                            <h3 style="font-size: 1.25rem; font-weight: 700; color: #111827;">${grade}</h3>
-                            <p style="color: #6b7280; font-size: 0.8rem; margin-top: 0.5rem;">${count} Students</p>
-                        </div>
-                    `}).join('')}
-                </div>
-            </div>
-        `;
-        feather.replace();
-    },
-
-    renderExams(container) {
-        if (!this.state.currentExamsForm) {
-            return this.renderExamsForms(container);
-        }
-        if (!this.state.currentExamsSection) {
-            return this.renderExamsSections(container);
-        }
-        return this.renderExamsMarkEntry(container);
-    },
-
-    renderExamsForms(container) {
-        const forms = ["Form 1", "Form 2", "Form 3", "Form 4"];
-        container.innerHTML = `
-            <div class="animate-fade-in">
-                <div class="mb-6">
-                    <h2 class="text-2xl font-bold" style="color: var(--color-primary-text);">Exam Management</h2>
-                    <p class="text-secondary-text">Select a form to enter or edit marks</p>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
-                    ${forms.map(form => `
-                        <div onclick="App.openExamsForm('${form}')" class="glass-card p-8 cursor-pointer text-center hover-scale">
-                            <div style="width: 64px; height: 64px; background: #eff6ff; color: #3b82f6; border-radius: 16px; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center;">
-                                <i data-feather="book-open" style="width: 32px; height: 32px;"></i>
-                            </div>
-                            <h3 class="text-xl font-bold">${form}</h3>
-                            <p class="text-secondary-text mt-2">Click to view sections</p>
+                            <h3 class="font-bold text-lg">${grade}</h3>
+                            <p class="text-sm text-secondary-text">Click to view sections</p>
                         </div>
                     `).join('')}
                 </div>
-            </div>
-        `;
+            </div >
+    `;
         feather.replace();
     },
 
-    openExamsForm(form) {
-        this.state.currentExamsForm = form;
+    openExamsGrade(grade) {
+        this.state.currentExamsGrade = grade;
         this.refreshCurrentView();
     },
 
     renderExamsSections(container) {
-        const form = this.state.currentExamsForm;
-        const sections = ["A", "B", "C"];
-        const students = Store.getStudents();
-
+        const grade = this.state.currentExamsGrade;
+        const sections = ["A", "B"];
         container.innerHTML = `
-            <div class="animate-fade-in">
-                <div class="flex items-center gap-4 mb-6">
-                    <button onclick="App.closeExamsForm()" class="btn glass-card p-2"><i data-feather="arrow-left"></i></button>
+    < div class="animate-fade-in" >
+                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
+                    <button onclick="App.closeExamsGrade()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
                     <div>
-                        <h2 class="text-2xl font-bold">${form} Sections</h2>
-                        <p class="text-secondary-text">Select a section to manage marks</p>
+                        <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${grade} Sections</h2>
+                        <p style="color: #6b7280; font-size: 0.85rem;">Select a section.</p>
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
-                    ${sections.map(sec => {
-            const count = students.filter(s => s.grade === form && s.section === sec).length;
-            return `
-                            <div onclick="App.openExamsSection('${sec}')" class="glass-card p-8 cursor-pointer text-center hover-scale">
-                                <div style="width: 64px; height: 64px; background: #eff6ff; color: #3b82f6; border-radius: 16px; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center;">
-                                    <i data-feather="users" style="width: 32px; height: 32px;"></i>
-                                </div>
-                                <h3 class="text-xl font-bold">Section ${sec}</h3>
-                                <p class="text-secondary-text mt-2">${count} Students</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    ${sections.map(sec => `
+                        <div onclick="App.openExamsSection('${sec}')" class="glass-card p-6 cursor-pointer hover:shadow-lg transition-all text-center">
+                            <div style="width: 54px; height: 54px; background: #eff6ff; color: #3b82f6; border-radius: 12px; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center;">
+                                <i data-feather="users"></i>
                             </div>
-                        `;
-        }).join('')}
+                            <h3 class="font-bold text-lg">Section ${sec}</h3>
+                            <p class="text-sm text-secondary-text">15 Students</p>
+                        </div>
+                    `).join('')}
                 </div>
-            </div>
-        `;
+            </div >
+    `;
         feather.replace();
     },
 
@@ -1103,121 +869,156 @@ const App = {
         this.refreshCurrentView();
     },
 
-    closeExamsForm() {
-        this.state.currentExamsForm = null;
+    closeExamsGrade() {
+        this.state.currentExamsGrade = null;
         this.refreshCurrentView();
     },
 
-    renderExamsMarkEntry(container) {
-        const form = this.state.currentExamsForm;
+    renderExamsStudents(container) {
+        const grade = this.state.currentExamsGrade;
         const section = this.state.currentExamsSection;
-        const students = Store.getStudents().filter(s => s.grade === form && s.section === section);
-        const subjects = ["Math", "English", "History", "Physics", "Arabic", "Tarbiya", "IT", "Af-Somali", "Chemistry", "Geography", "Biology"];
+        const students = Store.getStudents().filter(s => s.grade === grade && s.section === section);
 
         container.innerHTML = `
-            <div class="animate-fade-in">
-                <div class="flex justify-between items-center mb-6">
-                    <div class="flex items-center gap-4">
-                        <button onclick="App.closeExamsSection()" class="btn glass-card p-2"><i data-feather="arrow-left"></i></button>
-                        <div>
-                            <h2 class="text-2xl font-bold">${form} - Section ${section}</h2>
-                            <p class="text-secondary-text">Enter marks for all 11 subjects</p>
-                        </div>
+    < div class="animate-fade-in" >
+                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
+                    <button onclick="App.closeExamsSection()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
+                    <div>
+                        <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${grade} - Section ${section}</h2>
+                        <p style="color: #6b7280; font-size: 0.85rem;">Select a student to enter marks.</p>
                     </div>
-                    <button onclick="App.saveAllExamMarks()" class="btn btn-primary" style="background:#059669; border:none;">
-                        <i data-feather="save"></i> Save All Marks
-                    </button>
                 </div>
-
-                <div class="glass-card" style="padding: 0; overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-                    <table class="table" style="min-width: 1200px; margin: 0;">
-                        <thead>
-                            <tr style="background: #f9fafb;">
-                                <th style="padding: 1rem; width: 50px;">#</th>
-                                <th style="padding: 1rem; width: 250px; text-align: left;">Student Name</th>
-                                ${subjects.map(sub => `<th style="padding: 1rem; text-align: center; font-size: 0.75rem;">${sub}</th>`).join('')}
+                <div class="table-container glass-card" style="padding: 0; overflow: hidden;">
+                    <table class="table" style="margin: 0;">
+                        <thead style="background: #f9fafb;">
+                            <tr>
+                                <th style="padding: 1rem 1.5rem; text-align: left; color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; width: 50px;">#</th>
+                                <th style="padding: 1rem 1.5rem; text-align: left; color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Student Name</th>
+                                <th style="padding: 1rem 1.5rem; text-align: center; color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Gender</th>
+                                <th style="padding: 1rem 1.5rem; text-align: right; color: #6b7280; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${students.map((s, idx) => {
-            const entry = Store.getExamMarks(s.id);
-            return `
-                                    <tr style="border-bottom: 1px solid #f3f4f6;">
-                                        <td style="padding: 1rem; text-align: center; color: #6b7280; font-weight: 600;">${idx + 1}</td>
-                                        <td style="padding: 1rem; font-weight: 500; color: #111827;">${s.fullName}</td>
-                                        ${subjects.map(sub => `
-                                            <td style="padding: 0.5rem; text-align: center;">
-                                                <input type="number" 
-                                                       class="form-input exam-input" 
-                                                       data-student-id="${s.id}" 
-                                                       data-subject="${sub}"
-                                                       value="${entry.marks[sub] || ''}" 
-                                                       style="width: 60px; text-align: center; padding: 0.4rem; font-size: 0.875rem;"
-                                                       min="0" max="100">
-                                            </td>
-                                        `).join('')}
-                                    </tr>
-                                `;
-        }).join('')}
+                            ${students.map((s, idx) => `
+                                <tr style="border-bottom: 1px solid #f3f4f6;">
+                                    <td style="padding: 1rem 1.5rem; font-weight: 600; color: #6b7280;">${idx + 1}</td>
+                                    <td style="padding: 1rem 1.5rem; font-weight: 500; color: #111827;">${s.fullName}</td>
+                                    <td style="padding: 1rem 1.5rem; text-align: center;">${s.gender}</td>
+                                    <td style="padding: 1rem 1.5rem; text-align: right;">
+                                        <button onclick="App.openStudentExamMarks('${s.id}')" class="btn btn-primary btn-sm">
+                                            Enter Marks
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
                         </tbody>
                     </table>
                 </div>
-            </div>
-        `;
+            </div >
+    `;
         feather.replace();
     },
 
-    saveAllExamMarks() {
-        const inputs = document.querySelectorAll('.exam-input');
-        const groupedMarks = {};
-
-        inputs.forEach(input => {
-            const studentId = input.dataset.studentId;
-            const subject = input.dataset.subject;
-            const value = input.value;
-
-            if (!groupedMarks[studentId]) groupedMarks[studentId] = {};
-            groupedMarks[studentId][subject] = value === '' ? null : parseFloat(value);
-        });
-
-        for (const [studentId, marks] of Object.entries(groupedMarks)) {
-            Store.saveExamMarks(studentId, marks);
-        }
-
-        App.showToast('✅ All marks saved successfully!');
-    },
-
-    changeExamsTerm(term) {
-        this.state.currentExamsTerm = term || 'Midterm';
-        this.refreshCurrentView();
-    },
-
-    closeExamsSubject() {
-        this.state.currentExamsSubject = null;
+    openStudentExamMarks(studentId) {
+        this.state.currentExamsStudentId = studentId;
         this.refreshCurrentView();
     },
 
     closeExamsSection() {
         this.state.currentExamsSection = null;
         this.refreshCurrentView();
-        const term = this.state.currentExamsTerm;
+    },
 
-        const students = Store.getStudents().filter(s => s.grade === grade && s.section === section);
-        const existingRecords = Store.getExamRecords(grade, section, subject, term);
+    renderStudentExamMarks(container) {
+        const studentId = this.state.currentExamsStudentId;
+        const student = Store.getStudent(studentId);
+        const term = this.state.currentExamsTerm || 'Midterm';
+        const subjects = ["Mathematics", "Physics", "Chemistry", "Biology", "English", "Somali", "Arabic", "Islamic Studies", "Geography", "History", "ICT"];
+        
+        const existingRecords = Store.state.exams.filter(e => e.studentId === studentId && e.term === term);
 
-        const data = students.map(s => {
-            const record = existingRecords.find(r => r.studentId === s.id);
-            return {
-                Student: s.fullName,
-                Grade: grade,
-                Section: section,
-                Subject: subject,
-                Term: term,
-                Score: record ? record.score : 0
-            };
+        container.innerHTML = `
+    < div class="animate-fade-in" >
+                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
+                    <button onclick="App.closeExamsStudents()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
+                    <div>
+                        <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Exam Marks: ${student.fullName}</h2>
+                        <p style="color: #6b7280; font-size: 0.85rem;">${student.grade} - Section ${student.section} | ${term}</p>
+                    </div>
+                </div>
+                <div class="glass-card p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-bold text-lg">Subject-wise Performance</h3>
+                        <div class="flex gap-4">
+                            <select onchange="App.changeExamsTerm(this.value)" class="form-input" style="width: auto;">
+                                <option value="Midterm" ${term === 'Midterm' ? 'selected' : ''}>Midterm</option>
+                                <option value="Final" ${term === 'Final' ? 'selected' : ''}>Final</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        ${subjects.map(sub => {
+                            const record = existingRecords.find(e => e.subject === sub);
+                            const score = record ? record.score : '';
+                            return `
+                                <div class="p-4 border border-gray-100 rounded-lg">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">${sub}</label>
+                                    <input type="number" step="0.01" value="${score}" 
+                                           class="form-input exam-score-input" 
+                                           data-subject="${sub}"
+                                           placeholder="0-100"
+                                           style="height: 42px;">
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    <div class="mt-8 flex justify-end gap-4">
+                         <button onclick="App.closeExamsStudents()" class="btn btn-secondary">Cancel</button>
+                         <button onclick="App.saveStudentScores()" class="btn btn-primary" style="padding: 0.6rem 2rem;">Save All Marks</button>
+                    </div>
+                </div>
+            </div >
+    `;
+        feather.replace();
+    },
+
+    closeExamsStudents() {
+        this.state.currentExamsStudentId = null;
+        this.refreshCurrentView();
+    },
+
+    changeExamsTerm(term) {
+        this.state.currentExamsTerm = term;
+        this.refreshCurrentView();
+    },
+
+    saveStudentScores() {
+        const studentId = this.state.currentExamsStudentId;
+        const term = this.state.currentExamsTerm || 'Midterm';
+        const inputs = document.querySelectorAll('.exam-score-input');
+        const scores = [];
+
+        inputs.forEach(input => {
+            const score = input.value;
+            if (score !== '') {
+                scores.push({
+                    studentId: studentId,
+                    subject: input.dataset.subject,
+                    term: term,
+                    score: parseFloat(score),
+                    date: new Date().toISOString().split('T')[0]
+                });
+            }
         });
 
-        this.exportToExcel(data, `Exams_${subject}_${term}_${grade}_${section}`);
+        if (scores.length > 0) {
+            Store.saveExamScores(scores);
+            this.showToast('Exam marks saved successfully!');
+            this.state.currentExamsStudentId = null;
+            this.refreshCurrentView();
+        } else {
+            this.showToast('Please enter at least one score.');
+        }
     },
 
     // --- Profile Logic ---
@@ -1228,7 +1029,7 @@ const App = {
 
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         // Keep Students nav active visually as we are deep in that section
-        const stuLink = document.querySelector(`.nav-item[data-view="students"]`);
+        const stuLink = document.querySelector(`.nav - item[data - view="students"]`);
         if (stuLink) stuLink.classList.add('active');
 
         document.getElementById('page-title').textContent = 'Student Profile';
@@ -1252,31 +1053,31 @@ const App = {
 
         const activeTab = this.state.activeProfileTab;
         const tabClass = (name) => `
-            cursor: pointer; 
-            padding: 1rem 0; 
-            margin-right: 2rem; 
-            font-weight: 500; 
-            color: ${activeTab === name ? '#f97316' : '#6b7280'}; 
-            border-bottom: 2px solid ${activeTab === name ? '#f97316' : 'transparent'};
-        `;
+cursor: pointer;
+padding: 1rem 0;
+margin - right: 2rem;
+font - weight: 500;
+color: ${ activeTab === name ? '#f97316' : '#6b7280' };
+border - bottom: 2px solid ${ activeTab === name ? '#f97316' : 'transparent' };
+`;
 
         // If we came from a specific class folder, back button should go there, else general
         const backAction = this.state.currentStudentGrade ? "App.renderStudents(document.getElementById('main-content-area'))" : "App.navigateTo('students')";
 
         // RBAC: Edit Button visibility
         const editButton = (this.state.currentUserRole === 'admin' || this.state.currentUserRole === 'teacher') ? `
-            <button class="btn" onclick="App.openEditStudentModal('${student.id}')" style="border: 1px solid #e5e7eb; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.875rem; color: #374151;">
-                <i data-feather="edit-2" style="width: 14px; margin-right: 6px;"></i> Edit
-            </button>
-        ` : '';
+    < button class="btn" onclick = "App.openEditStudentModal('${student.id}')" style = "border: 1px solid #e5e7eb; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.875rem; color: #374151;" >
+        <i data-feather="edit-2" style="width: 14px; margin-right: 6px;"></i> Edit
+            </button >
+    ` : '';
 
         // RBAC: Fees Tab visibility
         const feesTab = this.state.currentUserRole === 'admin' ? `
-            <div onclick="App.switchProfileTab('fees')" style="${tabClass('fees')}">Fee History</div>
+    < div onclick = "App.switchProfileTab('fees')" style = "${tabClass('fees')}" > Fee History</div >
         ` : '';
 
         container.innerHTML = `
-            <div style="max-width: 1200px; margin: 0 auto;">
+        < div style = "max-width: 1200px; margin: 0 auto;" >
                 <button onclick="${backAction}" class="btn" style="margin-bottom: 1rem; background: transparent; color: #6b7280; padding-left: 0;">
                     <i data-feather="arrow-left" style="width: 16px; height: 16px; vertical-align: middle;"></i> Back to List
                 </button>
@@ -1304,8 +1105,8 @@ const App = {
                 <div id="profile-tab-content">
                     ${this.getProfileTabContent(student)}
                 </div>
-            </div>
-        `;
+            </div >
+    `;
     },
 
     getProfileTabContent(student) {
@@ -1331,7 +1132,7 @@ const App = {
         const exams = Store.state.exams.filter(e => e.studentId === student.id && e.term === term);
 
         return `
-            <div style="background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #f3f4f6;">
+    < div style = "background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #f3f4f6;" >
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <h3 style="font-weight: 700; color: #111827; font-size: 1rem;">Report Card - ${term}</h3>
                     <select onchange="App.changeProfileExamsTerm(this.value)" class="form-input" style="width: auto; height: 38px; padding: 0 2rem 0 1rem;">
@@ -1379,8 +1180,8 @@ const App = {
                         </tbody>
                     </table>
                 </div>
-            </div>
-        `;
+            </div >
+    `;
     },
 
     changeProfileExamsTerm(term) {
@@ -1394,7 +1195,7 @@ const App = {
         const late = attendance.filter(a => a.status === 'Late').length;
 
         return `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+    < div style = "display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;" >
                 <div style="background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #f3f4f6;">
                     <h3 style="font-weight: 700; margin-bottom: 1rem; color: #111827; font-size: 1rem;">Personal Information</h3>
                     <div style="display: flex; flex-direction: column; gap: 1rem;">
@@ -1435,8 +1236,8 @@ const App = {
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
+            </div >
+    `;
     },
 
     renderTabAttendance(attendance) {
@@ -1454,34 +1255,34 @@ const App = {
         }
 
         return `
-            <div style="background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #f3f4f6;">
+    < div style = "background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #f3f4f6;" >
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                     <h3 style="font-weight: 700; color: #111827; font-size: 1rem;">Attendance (Last 15 Days)</h3>
                     <div style="background: #ecfdf5; color: #059669; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.75rem;">${rate}% Overall Rate</div>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 8px; margin-bottom: 1.5rem;">
                     ${days.map(d => {
-            let color = '#f9fafb';
-            let textColor = '#6b7280';
-            if (d.status === 'Present') { color = '#ecfdf5'; textColor = '#059669'; }
-            if (d.status === 'Absent') { color = '#fef2f2'; textColor = '#dc2626'; }
-            if (d.status === 'Late') { color = '#fffbeb'; textColor = '#d97706'; }
+                        let color = '#f9fafb';
+                        let textColor = '#6b7280';
+                        if (d.status === 'Present') { color = '#ecfdf5'; textColor = '#059669'; }
+                        if (d.status === 'Absent') { color = '#fef2f2'; textColor = '#dc2626'; }
+                        if (d.status === 'Late') { color = '#fffbeb'; textColor = '#d97706'; }
 
-            return `
+                        return `
                             <div style="background:${color}; color:${textColor}; padding:8px; border-radius:8px; text-align:center; border:1px solid rgba(0,0,0,0.03);">
                                 <div style="font-size:0.6rem; margin-bottom:4px;">${d.date.slice(5)}</div>
                                 <div style="font-weight:700; font-size:0.8rem;">${d.status.charAt(0)}</div>
                             </div>
                         `;
-        }).join('')}
+                    }).join('')}
                 </div>
-            </div>
-        `;
+            </div >
+    `;
     },
 
     renderTabFees(fees) {
         return `
-            <div style="background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #f3f4f6;">
+    < div style = "background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #f3f4f6;" >
                 <h3 style="font-weight: 700; color: #111827; margin-bottom: 1rem; font-size: 1rem;">Fee Payments</h3>
                 <div style="overflow-x: auto;">
                     <table class="table">
@@ -1521,145 +1322,211 @@ const App = {
                         </tbody>
                     </table>
                 </div>
-                ${fees.filter(f => f.status !== 'PAID').length > 0 ? `
+                ${
+    fees.filter(f => f.status !== 'PAID').length > 0 ? `
                     <div style="margin-top:1.5rem; padding:1rem; background:#fffbeb; border:1px dashed #f59e0b; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:0.85rem; color:#92400e;">Automated reminders can be sent for unpaid months.</span>
                         <button onclick="App.sendReminder('${fees[0].studentId}')" style="background:#f59e0b; color:white; border:none; padding:6px 16px; border-radius:6px; font-size:0.8rem; font-weight:600; cursor:pointer;">Send Alert</button>
                     </div>
-                ` : ''}
-            </div>
-        `;
+                ` : ''
+}
+            </div >
+    `;
     },
 
     sendReminder(stuId) {
         this.showToast('Reminder sent to parent successfully!');
-        Store.logAction('Fee Alert', `Sent payment reminder for student ${stuId}`, JSON.parse(sessionStorage.getItem('dugsiga_user')).username);
+        Store.logAction('Fee Alert', `Sent payment reminder for student ${ stuId }`, JSON.parse(sessionStorage.getItem('dugsiga_user')).username);
     },
 
     // --- Views ---
 
     renderDashboard(container) {
-        // UPDATED FINANCIAL CALIBRATION (111 Paying Students, $50 Fee)
-        const students = Store.getStudents();
-        const allFees = Store.getFees();
-        const activeMonth = "January";
-        const currentYear = Store.state.currentYear;
-        const revenuePeriod = this.state.revenuePeriod || 'month';
-
-        const totalStuCount = 160;
-        const freeStuCount = 49; // Total free students
-        const payingStuCount = 111; // 160 - 49 = 111 paying students
-        const feePerStudent = 50;
-
-        // Revenue calculations based on time period
-        let expectedRevenue, collectedRevenue, pendingRevenue;
-
-        if (revenuePeriod === 'month') {
-            expectedRevenue = payingStuCount * feePerStudent; // $5,550
-            collectedRevenue = 3250; // $3,250
-            pendingRevenue = expectedRevenue - collectedRevenue; // $2,300
-        } else if (revenuePeriod === 'term') {
-            // Term = 3 months
-            expectedRevenue = payingStuCount * feePerStudent * 3; // $16,650
-            collectedRevenue = 3250 * 3; // $9,750
-            pendingRevenue = expectedRevenue - collectedRevenue; // $6,900
-        } else { // year
-            // Year = 12 months
-            expectedRevenue = payingStuCount * feePerStudent * 12; // $66,600
-            collectedRevenue = 3250 * 12; // $39,000
-            pendingRevenue = expectedRevenue - collectedRevenue; // $27,600
-        }
-
-        const paidStudents = Math.floor(collectedRevenue / feePerStudent);
-        const unpaidStudents = payingStuCount - paidStudents;
+        // USER PROVIDED EXAMPLE NUMBERS
+        const totalStuCount = 180;
+        const maleStuCount = 95;
+        const femaleStuCount = 85;
+        const graduatedCount = 40;
+        const totalTeachers = 15;
+        const totalSalaries = 4500;
+        const presentToday = 165;
+        const absentToday = 15;
+        const lateToday = 0; // Not provided, keeping 0
+        const monthlyAttendance = 3900;
+        const totalAttendance = 18000;
+        const totalCollectedMonth = 6200;
+        const totalPaidMonth = 4800;
+        const pendingRevenue = 0; // Can be calculated if needed
+        const expectedRevenue = 0; // Can be calculated if needed
 
         container.innerHTML = `
-            <div style=" max-width: 1400px; margin: 0 auto;">
+    < div style = "max-width: 1400px; margin: 0 auto;" >
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <div>
-                        <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Management Dashboard</h2>
-                        <p style="color: #6b7280; font-size: 0.85rem;">Live status for <span style="color:#6366f1; font-weight:600;">${activeMonth}</span> (Academic Year: ${currentYear})</p>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <label style="color: #6b7280; font-size: 0.875rem; font-weight: 500;">Revenue Period:</label>
-                        <select onchange="App.changeRevenuePeriod(this.value)" class="form-input" style="width: auto; padding: 0.5rem 2rem 0.5rem 1rem;">
-                            <option value="month" ${revenuePeriod === 'month' ? 'selected' : ''}>This Month</option>
-                            <option value="term" ${revenuePeriod === 'term' ? 'selected' : ''}>This Term</option>
-                            <option value="year" ${revenuePeriod === 'year' ? 'selected' : ''}>This Year</option>
-                        </select>
+                        <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Dashboard</h2>
+                        <p style="color: #6b7280; font-size: 0.85rem;">Live status overview</p>
                     </div>
                 </div>
 
+                <!--STUDENT INFORMATION-- >
+                <h3 class="dashboard-section-header">STUDENT INFORMATION</h3>
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
                     <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
-                        <div style="width: 48px; height: 48px; background: #eff6ff; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #3b82f6;">
-                            <i data-feather="users" style="width: 20px; height: 20px;"></i>
-                        </div>
                         <div>
                             <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Total Students</p>
                             <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${totalStuCount}</h2>
                         </div>
-                    </div>
-                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
-                        <div style="width: 48px; height: 48px; background: #fef2f2; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #ef4444;">
-                            <i data-feather="trending-up" style="width: 20px; height: 20px;"></i>
-                        </div>
-                        <div>
-                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Expected Rev.</p>
-                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">$${expectedRevenue.toLocaleString()}</h2>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #eff6ff; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #3b82f6;">
+                            <i data-feather="users" style="width: 20px; height: 20px;"></i>
                         </div>
                     </div>
                     <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
-                        <div style="width: 48px; height: 48px; background: #f0fdf4; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #10b981;">
-                            <i data-feather="dollar-sign" style="width: 20px; height: 20px;"></i>
-                        </div>
                         <div>
-                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Collected Rev.</p>
-                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #10b981;">$${collectedRevenue.toLocaleString()}</h2>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Male Students</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${maleStuCount}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #eff6ff; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #3b82f6;">
+                            <i data-feather="arrow-up" style="width: 20px; height: 20px;"></i>
                         </div>
                     </div>
-                    <div class="stat-card" style="padding: 1.5rem; border-left: 4px solid #f59e0b; display: flex; align-items: center; gap: 1.25rem;">
-                        <div style="width: 48px; height: 48px; background: #fffbeb; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #f59e0b;">
-                            <i data-feather="clock" style="width: 20px; height: 20px;"></i>
-                        </div>
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
                         <div>
-                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Pending Revenue</p>
-                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">$${pendingRevenue.toLocaleString()} <small style="font-size:0.75rem; color:#92400e;">(${unpaidStudents} Students)</small></h2>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Female Students</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${femaleStuCount}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #fdf2f8; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #ec4899;">
+                            <i data-feather="user" style="width: 20px; height: 20px;"></i>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
+                        <div>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Graduated Students</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${graduatedCount}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #fffbeb; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #f59e0b;">
+                            <i data-feather="award" style="width: 20px; height: 20px;"></i>
                         </div>
                     </div>
                 </div>
 
-                <!-- Main Charts Row -->
+                <!--TEACHER & STAFF-- >
+                <h3 class="dashboard-section-header">TEACHER & STAFF</h3>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
+                        <div>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Total Teachers</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${totalTeachers}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #ecfdf5; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #10b981;">
+                            <i data-feather="briefcase" style="width: 20px; height: 20px;"></i>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
+                        <div>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Total Teachers & Staff Salaries</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">$${totalSalaries.toLocaleString()}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #fef2f2; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #ef4444;">
+                            <i data-feather="dollar-sign" style="width: 20px; height: 20px;"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!--ATTENDANCE INFORMATION-- >
+                <h3 class="dashboard-section-header">ATTENDANCE INFORMATION</h3>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
+                        <div>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">All Total Attendance</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${totalAttendance.toLocaleString()}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #eff6ff; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #6366f1;">
+                            <i data-feather="archive" style="width: 20px; height: 20px;"></i>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
+                        <div>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Present Today</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${presentToday}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #ecfdf5; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #10b981;">
+                            <i data-feather="check-circle" style="width: 20px; height: 20px;"></i>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
+                        <div>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Absent Today</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${absentToday}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #fef2f2; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #ef4444;">
+                            <i data-feather="x-circle" style="width: 20px; height: 20px;"></i>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
+                        <div>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Late Students</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${lateToday}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #fffbeb; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #f59e0b;">
+                            <i data-feather="clock" style="width: 20px; height: 20px;"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!--FINANCIAL INFORMATION-- >
+                <h3 class="dashboard-section-header">FINANCIAL INFORMATION</h3>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
+                        <div>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Total Collected This Month</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">$${totalCollectedMonth.toLocaleString()}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #ecfdf5; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #10b981;">
+                            <i data-feather="plus-circle" style="width: 20px; height: 20px;"></i>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
+                        <div>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Total Paid This Month</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">$${totalPaidMonth.toLocaleString()}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #fef2f2; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #ef4444;">
+                            <i data-feather="minus-circle" style="width: 20px; height: 20px;"></i>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 1.5rem; display: flex; align-items: center; gap: 1.25rem;">
+                        <div>
+                            <p style="color: #6b7280; font-size: 0.8rem; font-weight: 500; margin-bottom: 2px;">Attendance This Month</p>
+                            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">${monthlyAttendance.toLocaleString()}</h2>
+                        </div>
+                        <div style="margin-left: auto; width: 48px; height: 48px; background: #eff6ff; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #3b82f6;">
+                            <i data-feather="calendar" style="width: 20px; height: 20px;"></i>
+                        </div>
+                    </div>
+                </div>
+
                 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
-                    <!-- Line Chart -->
                     <div class="glass-card" style="padding: 1.5rem; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.03);">
-                        <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 2rem; color: #111827;">Financial Performance (Yearly)</h3>
+                        <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 2rem; color: #111827;">Attendance Trend (Last 7 Days)</h3>
                         <div style="height: 350px; position: relative;">
+                            <canvas id="attendanceChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="glass-card" style="padding: 1.5rem; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.03);">
+                        <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 2rem; color: #111827;">Fee Collection</h3>
+                        <div style="height: 280px; position: relative;">
                             <canvas id="revenueChart"></canvas>
                         </div>
                     </div>
-
-                    <!-- Attendance Chart -->
-                    <div class="glass-card" style="padding: 1.5rem; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.03);">
-                        <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 2rem; color: #111827;">Attendance Today</h3>
-                        <div style="height: 280px; position: relative;">
-                            <canvas id="attendanceChart"></canvas>
-                        </div>
-                        <div id="attendance-legend" style="margin-top: 1.5rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; font-size: 0.75rem; font-weight: 600;">
-                            <div style="display:flex; align-items:center; gap:6px;"><span style="width:10px; height:10px; background:#10b981; border-radius:50%;"></span> Present</div>
-                            <div style="display:flex; align-items:center; gap:6px;"><span style="width:10px; height:10px; background:#ef4444; border-radius:50%;"></span> Absent</div>
-                            <div style="display:flex; align-items:center; gap:6px;"><span style="width:10px; height:10px; background:#f59e0b; border-radius:50%;"></span> Late</div>
-                        </div>
-                    </div>
                 </div>
-            </div>
-        `;
+            </div >
+    `;
 
         feather.replace();
 
-        // Use a timeout to ensure canvas is ready in DOM
         setTimeout(() => {
-            this.initDashboardCharts(allFees, students); // Pass allFees and students for chart data
+            this.initDashboardCharts([], []);
         }, 50);
     },
 
@@ -1759,7 +1626,7 @@ const App = {
         const students = Store.getStudents();
 
         container.innerHTML = `
-    <div >
+    < div >
                 <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
                     <button onclick="App.closeClassFolder()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
                     <div>
@@ -1781,7 +1648,7 @@ const App = {
                         </div>
                     `}).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -1795,10 +1662,10 @@ const App = {
 
         // RBAC: Add Student Button
         const addStudentBtn = (this.state.currentUserRole === 'admin' || this.state.currentUserRole === 'teacher') ?
-            `<button class="btn btn-primary" onclick="App.openAddStudentModal()">+ Add Student</button>` : '';
+            `< button class="btn btn-primary" onclick = "App.openAddStudentModal()" > + Add Student</button > ` : '';
 
         container.innerHTML = `
-            <div class="animate-fade-in">
+    < div class="animate-fade-in" >
                 <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem;">
                     <button onclick="App.closeClassFolder()" class="btn" style="background: white; border: 1px solid #e5e7eb; color: #374151; padding: 0.5rem;">
                         <i data-feather="arrow-left"></i>
@@ -1859,12 +1726,7 @@ const App = {
                                             <td><span class="badge badge-success">${s.status || 'Active'}</span></td>
                                             <td style="text-align: right;">
                                                 <div style="display: flex; gap: 6px; justify-content: flex-end;">
-                                                    <button class="btn btn-edit" onclick="App.openEditStudentModal('${s.id}')" title="Edit">
-                                                        <i data-feather="edit-2" style="width: 14px; height: 14px;"></i> Edit
-                                                    </button>
-                                                    <button class="btn btn-delete" onclick="if(confirm('Delete this student?')) { Store.deleteStudent('${s.id}'); App.refreshCurrentView(); }" title="Delete">
-                                                        <i data-feather="trash-2" style="width: 14px; height: 14px;"></i> Delete
-                                                    </button>
+                                                    ${editBtn}
                                                 </div>
                                             </td>
                                         </tr>
@@ -1874,8 +1736,8 @@ const App = {
                         </table>
                     </div>
                 </div>
-            </div>
-        `;
+            </div >
+    `;
 
         const searchInput = document.getElementById('search-student');
         if (searchInput) {
@@ -1925,12 +1787,12 @@ const App = {
         const attendanceRate = attendance.length > 0 ? Math.round((present / attendance.length) * 100) : 0;
 
         container.innerHTML = `
-            <div class="animate-fade-in">
+    < div class="animate-fade-in" >
                 <button onclick="App.renderStudents(document.getElementById('main-content-area'))" class="btn mb-4" style="background: white; border: 1px solid #e5e7eb; color: #374151;">
                     <i data-feather="arrow-left" style="width: 16px;"></i> Back to List
                 </button>
 
-                <!-- Header Card -->
+                <!--Header Card-- >
                 <div class="glass-card header-card" style="background: linear-gradient(135deg, #0056d2 0%, #3b82f6 100%); color: white; border: none; padding: 2rem;">
                     <div class="flex flex-col md:flex-row items-center gap-6">
                         <div style="width: 100px; height: 100px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: 700; color: #0056d2; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
@@ -1952,7 +1814,7 @@ const App = {
                     </div>
                 </div>
 
-                <!-- Stats Grid -->
+                <!--Stats Grid-- >
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                     <div class="glass-card p-6">
                         <h3 class="text-gray-500 text-sm font-medium uppercase mb-2">Financial Status</h3>
@@ -2005,39 +1867,39 @@ const App = {
                     </div>
                 </div>
 
-                <!-- Tabs (Simplified) -->
-                <div class="mt-8">
-                     <h3 class="font-bold text-lg mb-4">Recent Activity</h3>
-                     <div class="glass-card p-0 overflow-hidden">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Type</th>
-                                    <th>Description</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Mock Activity -->
-                                <tr>
-                                    <td class="text-gray-500">Today</td>
-                                    <td>Attendance</td>
-                                    <td>Marked as Present</td>
-                                    <td><span class="badg badge-success">Present</span></td>
-                                </tr>
-                                 <tr>
-                                    <td class="text-gray-500">Yesterday</td>
-                                    <td>Fee Payment</td>
-                                    <td>Tuition Fee - January</td>
-                                    <td><span class="badge badge-warning">Pending</span></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                     </div>
-                </div>
-            </div>
-        `;
+                <!--Tabs(Simplified) -->
+    <div class="mt-8">
+        <h3 class="font-bold text-lg mb-4">Recent Activity</h3>
+        <div class="glass-card p-0 overflow-hidden">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Mock Activity -->
+                    <tr>
+                        <td class="text-gray-500">Today</td>
+                        <td>Attendance</td>
+                        <td>Marked as Present</td>
+                        <td><span class="badg badge-success">Present</span></td>
+                    </tr>
+                    <tr>
+                        <td class="text-gray-500">Yesterday</td>
+                        <td>Fee Payment</td>
+                        <td>Tuition Fee - January</td>
+                        <td><span class="badge badge-warning">Pending</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+            </div >
+    `;
         feather.replace();
     },
 
@@ -2046,7 +1908,7 @@ const App = {
         const students = Store.getStudents();
 
         container.innerHTML = `
-    <div >
+    < div >
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <div>
                         <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Students Directory</h2>
@@ -2070,7 +1932,7 @@ const App = {
                         </div>
                     `}).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -2125,7 +1987,7 @@ const App = {
         const headTeacher = settings.headTeachers[grade] || 'Not Assigned';
 
         container.innerHTML = `
-    <div style = "" >
+    < div style = "" >
                 <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827; margin-bottom: 2rem;">Attendance</h2>
                 
                 <div style="display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 2rem;">
@@ -2149,7 +2011,7 @@ const App = {
                         </div>
                     `).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -2163,7 +2025,7 @@ const App = {
         ];
 
         container.innerHTML = `
-    <div >
+    < div >
                 <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
                     <button onclick="App.closeAttendanceFolder()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
                     <div>
@@ -2182,7 +2044,7 @@ const App = {
                         </div>
                     `}).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -2201,7 +2063,7 @@ const App = {
         const attendance = Store.getAttendance();
 
         container.innerHTML = `
-    <div class="glass-card" style = "padding: 1.5rem; min-height: 500px; display: flex; flex-direction: column;" >
+    < div class="glass-card" style = "padding: 1.5rem; min-height: 500px; display: flex; flex-direction: column;" >
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
                     <div style="display: flex; gap: 1rem; align-items: center;">
                         <button onclick="App.closeAttendanceFolder()" class="btn" style="background: #f3f4f6; color: #374151; padding: 8px;"><i data-feather="arrow-left" style="width:18px;"></i></button>
@@ -2262,7 +2124,7 @@ const App = {
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -2285,7 +2147,7 @@ const App = {
     quickMark(studentId, status) {
         const today = new Date().toISOString().split('T')[0];
         Store.recordAttendance(studentId, status, today);
-        this.showToast(`Marked ${status} `);
+        this.showToast(`Marked ${ status } `);
         this.renderAttendance(document.getElementById('main-content-area'));
     },
 
@@ -2304,7 +2166,7 @@ const App = {
 
             let presentCount = 0;
             for (let i = 1; i <= daysInMonth; i++) {
-                const dateStr = `${year} -${month.toString().padStart(2, '0')} -${i.toString().padStart(2, '0')} `;
+                const dateStr = `${ year } -${ month.toString().padStart(2, '0') } -${ i.toString().padStart(2, '0') } `;
                 const record = attendance.find(a => a.studentId === s.id && a.date === dateStr);
                 row[i] = record ? record.status.charAt(0) : '-';
                 if (record && record.status === 'Present') presentCount++;
@@ -2313,8 +2175,8 @@ const App = {
             return row;
         });
 
-        this.exportToExcel(data, `Attendance_${grade}_${section}_${monthStr} `);
-        Store.logAction('Export', `Exported attendance report for ${grade}`, JSON.parse(sessionStorage.getItem('dugsiga_user')).username);
+        this.exportToExcel(data, `Attendance_${ grade }_${ section }_${ monthStr } `);
+        Store.logAction('Export', `Exported attendance report for ${ grade }`, JSON.parse(sessionStorage.getItem('dugsiga_user')).username);
     },
 
     renderAttendanceFolders(container) {
@@ -2322,7 +2184,7 @@ const App = {
         const students = Store.getStudents();
 
         container.innerHTML = `
-    <div >
+    < div >
                 <h2 style="font-size: 1.5rem; font-weight: 700; color: #1f2937; margin-bottom: 2rem;">Attendance Registers</h2>
                 
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem;">
@@ -2365,7 +2227,7 @@ const App = {
                         `;
         }).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -2378,7 +2240,7 @@ const App = {
         const today = new Date().toISOString().split('T')[0];
 
         container.innerHTML = `
-    <div style = "" >
+    < div style = "" >
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                      <h3 style="font-size: 1.1rem; font-weight: 600;">Take Attendance: ${grade} (${today})</h3>
                      <button class="btn" onclick="App.renderAttendance(document.getElementById('main-content-area'))">Cancel</button>
@@ -2406,7 +2268,7 @@ const App = {
                 <div style="margin-top: 1.5rem; text-align: right;">
                     <button id="save-batch-attendance" class="btn btn-primary" style="background: #111827;">Save Records</button>
                 </div>
-            </div>
+            </div >
     `;
         document.getElementById('save-batch-attendance').addEventListener('click', () => {
             students.forEach(s => {
@@ -2425,22 +2287,22 @@ const App = {
         const activeMonth = "January";
         const currentYear = Store.state.currentYear;
 
-        // CALIBRATION (120/16/74/30)
-        const totalStuCount = 120;
-        const freeStuCount = 16;
+        // CALIBRATION (160/40/74/46)
+        const totalStuCount = 160;
+        const freeStuCount = 40;
         const paidCount = 74;
         const feePerStudent = 20;
-        const pendingStuCount = 30;
+        const pendingStuCount = 46;
 
-        const totalExpected = 2080;
-        const totalCollected = 1480;
-        const totalPending = 600;
+        const totalExpected = (totalStuCount - freeStuCount) * feePerStudent;
+        const totalCollected = paidCount * feePerStudent;
+        const totalPending = totalExpected - totalCollected;
 
         // Correctly derive Defaulters (Unpaid list)
         const unpaidFees = allFees.filter(f => f.status === 'UNPAID' && f.month === activeMonth);
 
         container.innerHTML = `
-            <div>
+    < div >
                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <div>
                         <h3 style="font-size: 1.5rem; font-weight: 700; color: #111827;">System Analytics & Financial Reports</h3>
@@ -2453,7 +2315,7 @@ const App = {
                     </div>
                  </div>
 
-                 <!-- Financial Overview -->
+                 <!--Financial Overview-- >
                  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
                     <div class="stat-card" style="padding: 1.5rem; border-left: 4px solid #10b981;">
                         <p style="font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Collected Revenue</p>
@@ -2510,8 +2372,8 @@ const App = {
                          </div>
                     </div>
                  </div>
-            </div>
-        `;
+            </div >
+    `;
         feather.replace();
         this.initReportsCharts();
     },
@@ -2620,7 +2482,7 @@ const App = {
         const students = Store.getStudents();
 
         container.innerHTML = `
-    <div >
+    < div >
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Fee Management</h2>
                     <button onclick="App.openFreeStudents()" class="btn glass-card" style="padding: 10px 20px; color: #6366f1; font-weight: 700; border: 1px solid #6366f1;">
@@ -2642,7 +2504,7 @@ const App = {
                         </div>
                     `}).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -2655,7 +2517,7 @@ const App = {
         const students = Store.getStudents();
 
         container.innerHTML = `
-    <div >
+    < div >
                 <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
                     <button onclick="App.closeFeeView()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
                     <div>
@@ -2674,7 +2536,7 @@ const App = {
                         </div>
                     `}).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -2684,7 +2546,7 @@ const App = {
         const grades = ["Form 1", "Form 2", "Form 3", "Form 4"];
 
         container.innerHTML = `
-    <div >
+    < div >
                 <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
                     <button onclick="App.closeFeeView()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
                     <div>
@@ -2726,7 +2588,7 @@ const App = {
                     `;
         }).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -2737,7 +2599,7 @@ const App = {
         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
         container.innerHTML = `
-    <div >
+    < div >
                 <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
                     <button onclick="App.closeFeeView()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
                     <div>
@@ -2753,7 +2615,7 @@ const App = {
                         </div>
                     `).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -2769,7 +2631,7 @@ const App = {
         const fees = Store.getFees();
 
         container.innerHTML = `
-    <div class="glass-card" style = "padding: 1.5rem;" >
+    < div class="glass-card" style = "padding: 1.5rem;" >
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
                     <div style="display: flex; gap: 1rem; align-items: center;">
                         <button onclick="App.closeFeeView()" class="btn glass-card" style="padding: 8px;"><i data-feather="arrow-left" style="width:18px;"></i></button>
@@ -2823,7 +2685,7 @@ const App = {
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -2858,7 +2720,7 @@ const App = {
                 DatePaid: fee && fee.datePaid ? fee.datePaid.split('T')[0] : '-'
             };
         });
-        this.exportToExcel(data, `Fees_${grade}_${section}_${month} `);
+        this.exportToExcel(data, `Fees_${ grade }_${ section }_${ month } `);
     },
 
     // Data Management: Export and Import JSON data
@@ -2867,7 +2729,7 @@ const App = {
         const settings = Store.getSettings();
 
         container.innerHTML = `
-    <div style = "" >
+    < div style = "" >
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
                     <div class="glass-card" style="padding: 1.5rem;">
                         <h3 style="font-weight: 700; color: #111827; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px;">
@@ -2941,7 +2803,7 @@ const App = {
                     </div>
                 </div>
                 <input type="file" id="import-file" accept=".json" style="display:none;" />
-            </div>
+            </div >
     `;
 
         // Export handler
@@ -3014,7 +2876,7 @@ const App = {
         const students = Store.getStudents();
 
         container.innerHTML = `
-    <div >
+    < div >
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">Private Parent Messages</h2>
                 </div>
@@ -3033,7 +2895,7 @@ const App = {
                         </div>
                     `}).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -3047,7 +2909,7 @@ const App = {
         const students = Store.getStudents();
 
         container.innerHTML = `
-    <div >
+    < div >
                 <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
                     <button onclick="App.closeMessagingView()" class="btn glass-card" style="padding: 0.5rem;"><i data-feather="arrow-left"></i></button>
                     <div>
@@ -3066,7 +2928,7 @@ const App = {
                         </div>
                     `}).join('')}
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -3077,7 +2939,7 @@ const App = {
         const students = Store.getStudents().filter(s => s.grade === grade && s.section === section);
 
         container.innerHTML = `
-    <div class="glass-card" style = "padding: 1.5rem;" >
+    < div class="glass-card" style = "padding: 1.5rem;" >
                 <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 2rem;">
                     <button onclick="App.closeMessagingView()" class="btn glass-card" style="padding: 8px;"><i data-feather="arrow-left" style="width:18px;"></i></button>
                     <div>
@@ -3119,13 +2981,13 @@ const App = {
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
 
     sendIndividualMessage(studentId) {
-        const input = document.getElementById(`msg - ${studentId} `);
+        const input = document.getElementById(`msg - ${ studentId } `);
         const message = input.value.trim();
         if (!message) {
             this.showToast('Please type a message first');
@@ -3134,10 +2996,10 @@ const App = {
 
         const student = Store.getStudents().find(s => s.id === studentId);
         // Log to audit trail
-        Store.logAction('Messaging', `Individual SMS sent to ${student.parentName} (${student.parentPhone}) regarding ${student.fullName}: "${message}"`, JSON.parse(sessionStorage.getItem('dugsiga_user'))?.username || 'System');
+        Store.logAction('Messaging', `Individual SMS sent to ${ student.parentName } (${ student.parentPhone }) regarding ${ student.fullName }: "${message}"`, JSON.parse(sessionStorage.getItem('dugsiga_user'))?.username || 'System');
 
         input.value = '';
-        this.showToast(`Message sent to ${student.parentName} `);
+        this.showToast(`Message sent to ${ student.parentName } `);
     },
 
     // --- Messaging View (Broadcast) ---
@@ -3148,7 +3010,7 @@ const App = {
         if (!this.state.messagingTab) this.state.messagingTab = 'reminder';
 
         container.innerHTML = `
-    <div style = "" >
+    < div style = "" >
         <div class="glass-card" style="padding: 1.5rem; margin-bottom: 2rem;">
             <div style="display: flex; gap: 2rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 1.5rem;">
                 <button onclick="App.setMessagingTab('reminder')" style="padding: 0.75rem 0; border-bottom: 2px solid ${this.state.messagingTab === 'reminder' ? '#6366f1' : 'transparent'}; font-weight: 600; color: ${this.state.messagingTab === 'reminder' ? '#6366f1' : '#6b7280'}; cursor: pointer; background:none; border:none;">Fee Reminder</button>
@@ -3172,7 +3034,7 @@ const App = {
                 </button>
             </div>
         </div>
-            </div>
+            </div >
     `;
         feather.replace();
     },
@@ -3187,7 +3049,7 @@ const App = {
         const sender = document.getElementById('sms-sender').value;
         const students = Store.getStudents();
 
-        if (confirm(`Are you sure you want to send this message to all ${students.length} parents ? `)) {
+        if (confirm(`Are you sure you want to send this message to all ${ students.length } parents ? `)) {
             students.forEach(s => {
                 Store.sendMessage(s.parentPhone, content, sender);
             });
@@ -3199,7 +3061,7 @@ const App = {
         const content = document.getElementById('sms-content').value;
         const sender = document.getElementById('sms-sender').value;
         Store.sendMessage(phone, content, sender);
-        this.showToast(`Message sent to ${name} `);
+        this.showToast(`Message sent to ${ name } `);
     },
 
     saveLeadershipSettings() {
@@ -3223,7 +3085,7 @@ const App = {
     showRegistrationForm() {
         const loginView = document.getElementById('login-view');
         loginView.innerHTML = `
-    <div class="h-screen w-full flex items-center justify-center bg-gray-100" >
+    < div class="h-screen w-full flex items-center justify-center bg-gray-100" >
         <div class="stat-card p-8 w-full max-w-md flex-col text-center" style="background: white;">
             <div class="mb-8 flex flex-col items-center">
                 <img src="logo.png" alt="Al Anwar Logo"
@@ -3254,7 +3116,7 @@ const App = {
                 <p style="color: #6b7280; font-size: 0.875rem;">Already have an account? <a href="#" id="back-to-login" style="color: #f97316; text-decoration: none; font-weight: 500;">Login</a></p>
             </div>
         </div>
-            </div>
+            </div >
     `;
 
         // Register form handler
@@ -3321,61 +3183,43 @@ const App = {
         if (!this.state.settingsTab) this.state.settingsTab = 'users';
 
         container.innerHTML = `
-            <div>
-                <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">System Management</h2>
-                        <p style="color: #6b7280; font-size: 0.85rem;">Manage user credentials and academic registration periods.</p>
-                    </div>
-                    <div style="display: flex; background: #f3f4f6; padding: 4px; border-radius: 8px;">
-                        <button onclick="App.setSettingsTab('users')" style="padding: 6px 16px; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.85rem; background: ${this.state.settingsTab === 'users' ? 'white' : 'transparent'}; color: ${this.state.settingsTab === 'users' ? '#111827' : '#6b7280'}; ${this.state.settingsTab === 'users' ? 'box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : ''}">User Accounts</button>
-                        <button onclick="App.setSettingsTab('years')" style="padding: 6px 16px; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.85rem; background: ${this.state.settingsTab === 'years' ? 'white' : 'transparent'}; color: ${this.state.settingsTab === 'years' ? '#111827' : '#6b7280'}; ${this.state.settingsTab === 'years' ? 'box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : ''}">Academic Years</button>
-                    </div>
-                </div>
+    < div >
+    <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h2 style="font-size: 1.5rem; font-weight: 700; color: #111827;">System Management</h2>
+            <p style="color: #6b7280; font-size: 0.85rem;">Manage user credentials and academic registration periods.</p>
+        </div>
+        <div style="display: flex; background: #f3f4f6; padding: 4px; border-radius: 8px;">
+            <button onclick="App.setSettingsTab('users')" style="padding: 6px 16px; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.85rem; background: ${this.state.settingsTab === 'users' ? 'white' : 'transparent'}; color: ${this.state.settingsTab === 'users' ? '#111827' : '#6b7280'}; ${this.state.settingsTab === 'users' ? 'box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : ''}">User Accounts</button>
+            <button onclick="App.setSettingsTab('years')" style="padding: 6px 16px; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.85rem; background: ${this.state.settingsTab === 'years' ? 'white' : 'transparent'}; color: ${this.state.settingsTab === 'years' ? '#111827' : '#6b7280'}; ${this.state.settingsTab === 'years' ? 'box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : ''}">Academic Years</button>
+        </div>
+    </div>
 
-                ${this.state.settingsTab === 'users' ? `
-                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
-                        <button onclick="App.openAddUserModal()" class="btn btn-primary">+ Add New User Account</button>
-                    </div>
+                ${
+    this.state.settingsTab === 'users' ? `
                     <div class="glass-card" style="padding: 0; overflow: hidden; border: 1px solid #e5e7eb;">
                         <table class="table">
                             <thead style="background: #f9fafb;">
                                 <tr>
-                                    <th style="padding: 1rem 1.5rem;">User Info</th>
-                                    <th>Permissions</th>
-                                    <th>Credentials</th>
+                                    <th style="padding: 1rem 1.5rem;">User Name</th>
+                                    <th>Email Address</th>
+                                    <th>Role</th>
+                                    <th>Password</th>
                                     <th style="text-align: right;">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${users.map((user, idx) => {
-            const p = user.permissions || {};
-            return `
+                                ${users.map((user, idx) => `
                                     <tr>
-                                        <td style="padding: 1rem 1.5rem;">
-                                            <div style="font-weight:600; color:#111827;">${user.name}</div>
-                                            <input type="email" value="${user.email}" id="user-email-${idx}" class="form-input" style="padding:2px 8px; font-size:0.75rem; width:200px; margin-top:4px;">
-                                        </td>
-                                        <td>
-                                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size:0.75rem;">
-                                                <label><input type="checkbox" id="user-perm-att-${idx}" ${p.attendance ? 'checked' : ''}> Attendance</label>
-                                                <label><input type="checkbox" id="user-perm-fees-${idx}" ${p.fees ? 'checked' : ''}> Fees</label>
-                                                <label><input type="checkbox" id="user-perm-exams-${idx}" ${p.exams ? 'checked' : ''}> Exams</label>
-                                                <label><input type="checkbox" id="user-perm-admin-${idx}" ${p.admin ? 'checked' : ''}> Admin Access</label>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div style="font-size:0.7rem; color:#6b7280; margin-bottom:2px;">Password</div>
-                                            <input type="text" value="${user.password || '123456'}" id="user-pw-${idx}" class="form-input" style="padding:4px 8px; font-size:0.8rem; width:120px;">
-                                        </td>
+                                        <td style="padding: 1rem 1.5rem; font-weight:600; color:#111827;">${user.name}</td>
+                                        <td style="color:#6b7280;">${user.email}</td>
+                                        <td><span class="badge" style="background:#eef2ff; color:#6366f1;">${user.role.toUpperCase()}</span></td>
+                                        <td><input type="text" value="${user.password}" id="user-pw-${idx}" class="form-input" style="padding:4px 12px; font-size:0.85rem; width:150px;"></td>
                                         <td style="text-align: right; padding-right:1.5rem;">
-                                            <div style="display:flex; gap:8px; justify-content:flex-end;">
-                                                <button onclick="App.saveUser(${idx})" class="btn" style="background:#6366f1; color:white; padding:6px 12px; font-size:0.75rem; border-radius:6px; cursor:pointer; border:none;">Update</button>
-                                                <button onclick="if(confirm('Delete user?')) { Store.state.users.splice(${idx}, 1); Store.saveToStorage(); App.refreshCurrentView(); }" class="btn" style="background:#ef4444; color:white; padding:6px 12px; font-size:0.75rem; border-radius:6px; cursor:pointer; border:none;">Delete</button>
-                                            </div>
+                                            <button onclick="App.saveUser(${idx})" class="btn" style="background:#6366f1; color:white; padding:6px 12px; font-size:0.75rem; border-radius:6px; cursor:pointer; border:none;">Update</button>
                                         </td>
                                     </tr>
-                                `}).join('')}
+                                `).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -3400,8 +3244,8 @@ const App = {
                         </div>
                     </div>
                 `}
-            </div>
-        `;
+            </div >
+    `;
         feather.replace();
     },
 
@@ -3411,99 +3255,186 @@ const App = {
     },
 
     deleteYearConfirm(year) {
-        if (confirm(`Are you sure you want to delete ${year}? All data for this year will be permanent deleted!`)) {
+        if (confirm(`Are you sure you want to delete ${ year }? All data for this year will be permanent deleted!`)) {
             Store.deleteYear(year);
-            this.showToast(`Deleted ${year}`);
+            this.showToast(`Deleted ${ year } `);
             this.refreshCurrentView();
             this.renderYearSelector();
         }
     },
 
     saveUser(index) {
-        const email = document.getElementById(`user-email-${index}`).value;
-        const pw = document.getElementById(`user-pw-${index}`).value;
-        const att = document.getElementById(`user-perm-att-${index}`).checked;
-        const fees = document.getElementById(`user-perm-fees-${index}`).checked;
-        const exams = document.getElementById(`user-perm-exams-${index}`).checked;
-        const admin = document.getElementById(`user-perm-admin-${index}`).checked;
-
+        const newPw = document.getElementById(`user - pw - ${ index } `).value;
         const users = Store.getUsers();
         const user = users[index];
-
-        user.email = email;
-        user.password = pw;
-        user.permissions = {
-            attendance: att,
-            fees: fees,
-            exams: exams,
-            admin: admin
-        };
-
-        // Map permission to legacy role for compatibility
-        if (admin) user.role = 'owner';
-        else if (fees) user.role = 'fees';
-        else if (att) user.role = 'teacher';
-        else user.role = 'restricted';
-
+        user.password = newPw;
         Store.updateUser(index, user);
-        this.showToast('User account updated successfully');
+        this.showToast('Credentials updated successfully');
     },
-
-    openAddUserModal() {
-        const name = prompt("Enter User Name:");
-        if (!name) return;
-        const email = prompt("Enter User Email:");
-        if (!email) return;
-        const password = prompt("Enter User Password:", "123456");
-
-        const newUser = {
-            name: name,
-            email: email,
-            password: password,
-            role: 'restricted',
-            permissions: { attendance: false, fees: false, exams: false, admin: false }
-        };
-
-        Store.state.users.push(newUser);
-        Store.saveToStorage();
-        this.showToast("User account created!");
-        this.refreshCurrentView();
-    },
-
-    renderCharts() {
-        const attendanceCtx = document.getElementById('attendanceChart')?.getContext('2d');
-        if (attendanceCtx) {
-            const days = Array.from({ length: 7 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - (6 - i));
-                return d.toISOString().split('T')[0];
-            });
-            const attData = days.map(day => Store.getAttendance().filter(a => a.date === day && a.status === 'Present').length);
-            new Chart(attendanceCtx, {
-                type: 'line',
-                data: {
-                    labels: days.map(d => new Date(d).toLocaleDateString(undefined, { weekday: 'short' })),
-                    datasets: [{ label: 'Present', data: attData, borderColor: '#3b82f6', backgroundColor: '#3b82f620', tension: 0.4, fill: true }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
-        }
-
-        const revenueCtx = document.getElementById('revenueChart')?.getContext('2d');
-        if (revenueCtx) {
-            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-            const revData = months.map(m => Store.getFees().filter(f => f.month === m && f.status === 'PAID').reduce((sum, f) => sum + f.amountPaid, 0));
-            new Chart(revenueCtx, {
-                type: 'bar',
-                data: {
-                    labels: months.map(m => m.substring(0, 3)),
-                    datasets: [{ label: 'Collected', data: revData, backgroundColor: '#10b981', borderRadius: 4 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
-        }
-    }
 };
 
 window.App = App;
+// --- Updated Dashboard & Charts Implementation ---
+App.renderDashboard = function (container) {
+    const students = Store.getStudents();
+    const teachers = Store.getTeachers();
+    const attendance = Store.getAttendance();
+    const fees = Store.getFees();
+
+    // --- 1. Student Calculations ---
+    const totalStudents = students.length;
+    const maleStudents = students.filter(s => s.gender === 'Male').length;
+    const femaleStudents = students.filter(s => s.gender === 'Female').length;
+    const graduated = students.filter(s => s.status === 'Graduated').length;
+    const activeStudents = students.filter(s => s.status === 'Active').length;
+
+    // --- 2. Staff Calculations ---
+    const totalTeachers = teachers.length;
+    const totalSalaries = teachers.reduce((sum, t) => sum + (t.salary || 0), 0);
+
+    // --- 3. Attendance Calculations ---
+    const totalAttendance = attendance.length;
+    const today = new Date().toISOString().split('T')[0];
+    const todayAtt = attendance.filter(a => a.date === today);
+    const presentToday = todayAtt.filter(a => a.status === 'Present').length;
+    const absentToday = todayAtt.filter(a => a.status === 'Absent').length;
+    const lateToday = todayAtt.filter(a => a.status === 'Late').length;
+
+    // --- 4. Financial Calculations ---
+    const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+    const monthlyFees = fees.filter(f => f.month === currentMonth);
+
+    // Collected: Actual payments made this month
+    const collectedThisMonth = monthlyFees.filter(f => f.status === 'PAID').reduce((sum, f) => sum + f.amountPaid, 0);
+
+    // Expected: Total expected from ALL active students (assuming $20/student standard)
+    const expectedRevenue = activeStudents * 20;
+
+    // Pending: Expected - Collected (approximate)
+    const pendingRevenue = Math.max(0, expectedRevenue - collectedThisMonth);
+
+    // Expenses/Paid: For now, using Salaries as the main expense
+    const totalPaidExpenses = totalSalaries;
+
+    container.innerHTML = `
+    < div class="animate-fade-in" >
+            <h2 style="font-size:1.5rem; font-weight:bold; color:var(--color-primary-text); margin-bottom:1.5rem;">Dashboard</h2>
+            
+            <!--Section 1: Student Information-- >
+            <h3 style="font-size:0.875rem; font-weight:600; color:#6b7280; margin-bottom:1rem; text-transform:uppercase; letter-spacing:0.05em;">Student Information</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                ${this.createStatCard('Total Students', totalStudents, 'users', '#3b82f6')}
+                ${this.createStatCard('Male Students', maleStudents, 'arrow-up', '#3b82f6')}
+                ${this.createStatCard('Female Students', femaleStudents, 'user', '#ec4899')}
+                ${this.createStatCard('Graduated Students', graduated, 'award', '#f59e0b')}
+            </div>
+
+            <!--Section 2: Teacher & Staff Information-- >
+            <h3 style="font-size:0.875rem; font-weight:600; color:#6b7280; margin-bottom:1rem; text-transform:uppercase; letter-spacing:0.05em;">Teacher & Staff</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                ${this.createStatCard('Total Teachers', totalTeachers, 'briefcase', '#10b981')}
+                ${this.createStatCard('Total Teachers & Staff Salaries', `$${totalSalaries.toFixed(2)}`, 'dollar-sign', '#ef4444')}
+            </div>
+
+            <!--Section 3: Attendance Information-- >
+            <h3 style="font-size:0.875rem; font-weight:600; color:#6b7280; margin-bottom:1rem; text-transform:uppercase; letter-spacing:0.05em;">Attendance Information</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                ${this.createStatCard('All Total Attendance', totalAttendance, 'archive', '#6366f1')}
+                ${this.createStatCard('Present Today', presentToday, 'check-circle', '#10b981')}
+                ${this.createStatCard('Absent Today', absentToday, 'x-circle', '#ef4444')}
+                ${this.createStatCard('Late Students', lateToday, 'clock', '#f59e0b')}
+            </div>
+
+            <!--Section 4: Financial Information-- >
+            <h3 style="font-size:0.875rem; font-weight:600; color:#6b7280; margin-bottom:1rem; text-transform:uppercase; letter-spacing:0.05em;">Financial Information</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                ${this.createStatCard('Total Collected This Month', `$${collectedThisMonth.toFixed(2)}`, 'plus-circle', '#10b981')}
+                ${this.createStatCard('Total Paid This Month', `$${totalPaidExpenses.toFixed(2)}`, 'minus-circle', '#ef4444')}
+                ${this.createStatCard('Pending Revenue', `$${pendingRevenue.toFixed(2)}`, 'alert-circle', '#f59e0b')}
+                ${this.createStatCard('Expected Revenue', `$${expectedRevenue.toFixed(2)}`, 'target', '#3b82f6')}
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-md-8">
+                    <div class="card glass-card">
+                        <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">Attendance Trend (Last 7 Days)</h3>
+                        <div style="height: 300px;">
+                            <canvas id="attendanceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card glass-card">
+                        <h3 style="font-size:1.1rem; font-weight:600; margin-bottom:1rem;">Fee Collection</h3>
+                        <div style="height: 300px;">
+                            <canvas id="revenueChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div >
+    `;
+
+    this.renderCharts();
+    feather.replace();
+};
+
+App.renderCharts = function () {
+    // Attendance Chart (Last 7 Days)
+    const attendanceCtx = document.getElementById('attendanceChart')?.getContext('2d');
+    if (attendanceCtx) {
+        const days = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() - (6 - i));
+            return d.toISOString().split('T')[0];
+        });
+
+        const attData = days.map(day => {
+            return Store.getAttendance().filter(a => a.date === day && a.status === 'Present').length;
+        });
+
+        new Chart(attendanceCtx, {
+            type: 'line',
+            data: {
+                labels: days.map(d => new Date(d).toLocaleDateString(undefined, { weekday: 'short' })),
+                datasets: [{
+                    label: 'Present Students',
+                    data: attData,
+                    borderColor: '#3b82f6',
+                    backgroundColor: '#3b82f620',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    // Revenue Chart (Last 12 Months)
+    const revenueCtx = document.getElementById('revenueChart')?.getContext('2d');
+    if (revenueCtx) {
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const fees = Store.getFees();
+
+        // Calculate total collected per month for all available data
+        const revData = months.map(m => {
+            return fees.filter(f => f.month === m && f.status === 'PAID').reduce((sum, f) => sum + f.amountPaid, 0);
+        });
+
+        new Chart(revenueCtx, {
+            type: 'bar',
+            data: {
+                labels: months.map(m => m.substring(0, 3)),
+                datasets: [{
+                    label: 'Collected ($)',
+                    data: revData,
+                    backgroundColor: '#10b981',
+                    borderRadius: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => App.init());
