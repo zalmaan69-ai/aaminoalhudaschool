@@ -1,0 +1,14 @@
+# Environment variables
+.env
+config.js
+
+# Dependencies
+node_modules/
+backend/backend/node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# App specific
+dugsiga_data_export.json

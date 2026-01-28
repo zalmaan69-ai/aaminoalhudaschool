@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Demo Mode - AL-Huda School</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem;
+            max-width: 700px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #111827;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            margin-bottom: 2rem;
+        }
+
+        .option {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #f97316;
+        }
+
+        .option h3 {
+            color: #111827;
+            margin-bottom: 0.5rem;
+        }
+
+        .option p {
+            color: #6b7280;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        button {
+            background: #f97316;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #ea580c;
+        }
+
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .info {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .credentials {
+            background: #111827;
+            color: #10b981;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 Setup Demo Mode</h1>
+        <p class="subtitle">Choose how you want to use the AL-Huda School System</p>
+
+        <div class="option">
+            <h3>Option 1: Demo Mode (No Firebase Required)</h3>
+            <p>
+                Use the app immediately with local storage only. Your data will be saved on this computer only.
+                Perfect for testing or single-device use.
+            </p>
+            <button onclick="setupDemoMode()">Enable Demo Mode & Create Demo Account</button>
+        </div>
+
+        <div class="option">
+            <h3>Option 2: Cloud Mode (Firebase Required)</h3>
+            <p>
+                You need to create a Firebase project first and update firebase-config.js with your credentials.
+                Follow the COMPLETE_MIGRATION_GUIDE.md for instructions.
+            </p>
+            <button onclick="openGuide()">Open Setup Guide</button>
+        </div>
+
+        <div id="success-message" class="success"></div>
+
+        <div class="info">
+            <strong>ℹ️ What's the difference?</strong><br>
+            <strong>Demo Mode:</strong> Works immediately, data stored locally only<br>
+            <strong>Cloud Mode:</strong> Requires setup, data syncs across all devices
+        </div>
+    </div>
+
+    <script>
+        function setupDemoMode() {
+            // Create demo credentials in localStorage
+            const demoCredentials = {
+                email: 'director@alhudaschool.edu',
+                password: 'PASSWORD_PROTECTED', // Do NOT hard-code passwords here
+                userId: 'demo-user-' + Date.now(),
+                role: 'admin'
+            };
+
+            // Store demo credentials
+            localStorage.setItem('demo_mode', 'true');
+            localStorage.setItem('demo_credentials', JSON.stringify(demoCredentials));
+
+            // Create initial demo data if none exists
+            if (!localStorage.getItem('dugsiga_data')) {
+                const initialData = {
+                    schoolInfo: {
+                        name: "AL-Huda School",
+                        principalName: "Admin User",
+                        address: "Demo Address",
+                        phone: "252-615-000-000"
+                    },
+                    students: [],
+                    attendance: {},
+                    fees: {},
+                    exams: {},
+                    freeFeeStudents: [],
+                    auditLog: [],
+                    messages: []
+                };
+                localStorage.setItem('dugsiga_data', JSON.stringify(initialData));
+            }
+
+            // Show success message
+            const successDiv = document.getElementById('success-message');
+            successDiv.innerHTML = `
+                <h3>✅ Demo Mode Enabled!</h3>
+                <div class="credentials">
+                <div class="credentials">
+                    Email: director@alhudaschool.edu<br>
+                    Password: [Enter the secure password you set in Firebase]
+                </div>
+                <p style="margin-top: 1rem;">
+                    <strong>Next Step:</strong> Open index.html and login with the credentials above.
+                </p>
+                <button onclick="openApp()" style="margin-top: 1rem;">Open Application Now</button>
+            `;
+            successDiv.style.display = 'block';
+        }
+
+        function openApp() {
+            window.location.href = 'index.html';
+        }
+
+        function openGuide() {
+            alert('Please open COMPLETE_MIGRATION_GUIDE.md in your project folder for detailed Firebase setup instructions.');
+        }
+    </script>
+</body>
+
+</html>

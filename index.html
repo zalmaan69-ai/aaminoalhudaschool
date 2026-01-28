@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AL-Huda School</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/feather-icons"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <!-- App Configurations -->
+    <script src="config.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="store.js"></script>
+    <script src="app.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="index.css">
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#111827">
+    <link rel="apple-touch-icon" href="logo.png">
+</head>
+
+<body>
+
+    <!-- Login View -->
+    <div id="login-view" class="h-screen w-full flex items-center justify-center bg-gray-100 hidden">
+        <div class="stat-card p-8 w-full max-w-md flex-col text-center" style="background: white;">
+            <div class="mb-8 flex flex-col items-center">
+                <img src="logo.png" alt="Al Anwar Logo"
+                    style="width: 80px; height: 80px; border-radius: 12px; margin-bottom: 1rem;">
+                <h1 class="text-2xl font-bold" style="color: #111827;">AL-Huda School</h1>
+                <p class="text-secondary-text">Sign in to your dashboard</p>
+            </div>
+
+            <form id="login-form" class="space-y-4 w-full text-left">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Email</label>
+                    <input type="email" id="email" name="email" class="form-input" placeholder="admin@alhuda.edu"
+                        required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Password</label>
+                    <input type="password" id="password" name="password" class="form-input" required>
+                </div>
+                <div class="mb-6" style="text-align: right;">
+                    <a href="#" id="forgot-password-link"
+                        style="color: #f97316; font-size: 0.875rem; text-decoration: none;">Forgot Password?</a>
+                </div>
+                <button type="submit" class="btn btn-primary w-full" style="padding: 12px;">Login</button>
+                <div id="login-error" style="color: #ef4444; font-size: 0.875rem; margin-top: 0.5rem; display: none;">
+                </div>
+            </form>
+            <div style="margin-top: 1.5rem; text-align: center; padding-top: 1.5rem; border-top: 1px solid #e5e7eb;">
+                <p style="color: #6b7280; font-size: 0.875rem;">Don't have an account? <a href="#" id="register-link"
+                        style="color: #f97316; text-decoration: none; font-weight: 500;">Register</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar Backdrop for Mobile -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop hidden"></div>
+
+    <!-- Main Application Layout -->
+    <div id="app-layout" class="app-container hidden">
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo-area" style="display: flex; align-items: center; gap: 12px;">
+                <img src="logo.png" alt="Logo" style="width: 32px; height: 32px; border-radius: 6px;">
+                AL-Huda
+            </div>
+
+            <nav class="nav-links">
+                <a href="#" data-view="dashboard" class="nav-item active">
+                    <i data-feather="grid"></i>
+                    Dashboard
+                </a>
+                <a href="#" data-view="attendance" class="nav-item">
+                    <i data-feather="check-circle"></i>
+                    Attendance
+                </a>
+                <a href="#" data-view="students" class="nav-item">
+                    <i data-feather="users"></i>
+                    Students
+                </a>
+                <a href="#" data-view="teachers" class="nav-item">
+                    <i data-feather="briefcase"></i>
+                    Teachers
+                </a>
+                <a href="#" data-view="fees" class="nav-item">
+                    <i data-feather="dollar-sign"></i>
+                    Fees
+                </a>
+                <a href="#" data-view="exams" class="nav-item">
+                    <i data-feather="file-text"></i>
+                    Exams
+                </a>
+                <a href="#" data-view="reports" class="nav-item">
+                    <i data-feather="bar-chart-2"></i>
+                    Reports
+                </a>
+                <a href="#" data-view="users" class="nav-item" id="nav-users" style="display:none;">
+                    <i data-feather="settings"></i>
+                    Users & Settings
+                </a>
+                <a href="#" data-view="free-fee-students" class="nav-item">
+                    <i data-feather="heart"></i>
+                    Free Fee Students
+                </a>
+
+                <a href="#" data-view="data-management" class="nav-item">
+                    <i data-feather="database"></i>
+                    Data Management
+                </a>
+                <a href="#" data-view="messaging" class="nav-item">
+                    <i data-feather="send"></i>
+                    Messaging
+                </a>
+                <a href="#" data-view="parent-messages" class="nav-item">
+                    <i data-feather="message-square"></i>
+                    Private Parent Messages
+                </a>
+                <a href="#" onclick="App.logout()" class="nav-item"
+                    style="color: #ef4444; margin-top: auto; border-top: 1px solid #374151; padding-top: 1rem;">
+                    <i data-feather="log-out"></i>
+                    Logout
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+
+            <header class="top-header">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <button id="sidebar-toggle" class="sidebar-toggle-btn">
+                        <i data-feather="menu"></i>
+                    </button>
+                    <h1 class="page-title" id="page-title">Dashboard</h1>
+                </div>
+
+                <div class="user-profile">
+                    <!-- Cloud Sync Status -->
+                    <div id="sync-status" onclick="Store.syncToCloud(); App.showToast('Manual sync triggered...')"
+                        style="margin-right: 1rem; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: #f0fdf4; border-radius: 20px; cursor: pointer;"
+                        title="Click to sync now">
+                        <div id="sync-indicator"
+                            style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></div>
+                        <span id="sync-text" style="font-size: 0.75rem; color: #059669; font-weight: 500;">Synced</span>
+                        <i data-feather="refresh-cw"
+                            style="width: 12px; height: 12px; color: #059669; margin-left: 4px;"></i>
+                    </div>
+
+                    <div class="avatar-circle">M</div>
+                    <div class="user-info">
+                        <span class="user-name" id="principal-name-display">maxamed maxamed abdi</span>
+                        <span class="user-role">Principal</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Scrollable Content -->
+            <div id="main-content-area" class="content-scroll">
+                <!-- Content injected via JS -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Student Modal -->
+    <div id="modal-container" class="modal-overlay hidden">
+        <div class="modal-content animate-fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold" style="color: var(--color-primary-text);">New Student</h3>
+                <button id="close-modal" style="background:none; border:none; cursor:pointer; color:#9ca3af;"><i
+                        data-feather="x"></i></button>
+            </div>
+            <form id="add-student-form">
+                <div class="flex gap-4 mb-4">
+                    <div style="flex:2;">
+                        <label class="block text-sm font-medium mb-1">Full Name</label>
+                        <input type="text" name="fullName" class="form-input" required>
+                    </div>
+                    <div style="flex:1;">
+                        <label class="block text-sm font-medium mb-1">Gender</label>
+                        <select name="gender" class="form-input">
+                            <option>Male</option>
+                            <option>Female</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-4 mb-4">
+                    <div style="flex:1;">
+                        <label class="block text-sm font-medium mb-1">Grade</label>
+                        <select name="grade" class="form-input">
+                            <option>Form 1</option>
+                            <option>Form 2</option>
+                            <option>Form 3</option>
+                            <option>Form 4</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label class="block text-sm font-medium mb-1">Section</label>
+                        <select name="section" id="add-section" class="form-input">
+                            <option value="A">Section A</option>
+                            <option value="B">Section B</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Parent Name</label>
+                    <input type="text" name="parentName" class="form-input" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium mb-1">Phone Number</label>
+                    <input type="tel" name="parentPhone" class="form-input" placeholder="e.g. 252-615-xxx-xxx" required>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" class="btn" style="background:#f3f4f6; color:#4b5563;"
+                        id="cancel-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="background: var(--color-sidebar-bg);">Save
+                        Student</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Student Modal -->
+    <div id="edit-student-modal" class="modal-overlay hidden">
+        <div class="modal-content animate-fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold" style="color: var(--color-primary-text);">Edit Student</h3>
+                <button id="close-edit-student" style="background:none; border:none; cursor:pointer; color:#9ca3af;"><i
+                        data-feather="x"></i></button>
+            </div>
+            <form id="edit-student-form">
+                <input type="hidden" name="id" id="edit-id">
+                <div class="flex gap-4 mb-4">
+                    <div style="flex:2;">
+                        <label class="block text-sm font-medium mb-1">Full Name</label>
+                        <input type="text" name="fullName" id="edit-fullName" class="form-input" required>
+                    </div>
+                    <div style="flex:1;">
+                        <label class="block text-sm font-medium mb-1">Gender</label>
+                        <select name="gender" id="edit-gender" class="form-input">
+                            <option>Male</option>
+                            <option>Female</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-4 mb-4">
+                    <div style="flex:1;">
+                        <label class="block text-sm font-medium mb-1">Grade</label>
+                        <select name="grade" id="edit-grade" class="form-input">
+                            <option>Form 1</option>
+                            <option>Form 2</option>
+                            <option>Form 3</option>
+                            <option>Form 4</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label class="block text-sm font-medium mb-1">Section</label>
+                        <select name="section" id="edit-section" class="form-input">
+                            <option value="A">Section A</option>
+                            <option value="B">Section B</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Parent Name</label>
+                    <input type="text" name="parentName" id="edit-parentName" class="form-input" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium mb-1">Phone Number</label>
+                    <input type="tel" name="parentPhone" id="edit-parentPhone" class="form-input" required>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" class="btn" style="background:#f3f4f6; color:#4b5563;"
+                        id="cancel-edit-student">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="background: var(--color-sidebar-bg);">Update
+                        Student</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Teacher Modal -->
+    <div id="add-teacher-modal" class="modal-overlay hidden">
+        <div class="modal-content animate-fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold" style="color: var(--color-primary-text);">New Teacher</h3>
+                <button id="close-add-teacher" style="background:none; border:none; cursor:pointer; color:#9ca3af;"><i
+                        data-feather="x"></i></button>
+            </div>
+            <form id="add-teacher-form">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Full Name</label>
+                    <input type="text" name="name" class="form-input" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Phone Number</label>
+                    <input type="tel" name="phone" class="form-input" required>
+                </div>
+                <div class="flex gap-4 mb-6">
+                    <div style="flex:1;">
+                        <label class="block text-sm font-medium mb-1">Gender</label>
+                        <select name="gender" class="form-input">
+                            <option>Male</option>
+                            <option>Female</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label class="block text-sm font-medium mb-1">Subject</label>
+                        <select name="subject" class="form-input">
+                            <option>Mathematics</option>
+                            <option>Science</option>
+                            <option>English</option>
+                            <option>Somali</option>
+                            <option>Arabic</option>
+                            <option>Islamic Studies</option>
+                            <option>Social Studies</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium mb-1">Salary ($)</label>
+                    <input type="number" name="salary" class="form-input" value="0.00" step="0.01">
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" class="btn" style="background:#f3f4f6; color:#4b5563;"
+                        id="cancel-add-teacher">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="background: var(--color-sidebar-bg);">Save
+                        Teacher</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Update Attendance Modal -->
+    <div id="att-modal-container" class="modal-overlay hidden">
+        <div class="modal-content animate-fade-in" style="max-width: 400px;">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold" id="att-modal-title" style="color: var(--color-primary-text);">Update
+                    Attendance</h3>
+                <button id="close-att-modal" style="background:none; border:none; cursor:pointer; color:#9ca3af;"><i
+                        data-feather="x"></i></button>
+            </div>
+            <form id="update-att-form">
+                <input type="hidden" name="studentId" id="att-student-id">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Date</label>
+                    <input type="date" name="date" id="att-date" class="form-input" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium mb-2">Status</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="status" value="Present" checked style="accent-color: #10b981;">
+                            <span class="text-success font-medium">Present</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="status" value="Absent" style="accent-color: #ef4444;">
+                            <span class="text-danger font-medium">Absent</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="status" value="Late" style="accent-color: #f59e0b;">
+                            <span class="text-warning font-medium">Late</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" class="btn" style="background:#f3f4f6; color:#4b5563;"
+                        id="cancel-att-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="background: var(--color-sidebar-bg);">Save
+                        Record</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="translate-y-20 opacity-0">
+        <i data-feather="check-circle" style="color: var(--color-accent-green);"></i>
+        <p id="toast-message">Operation successful</p>
+    </div>
+
+    <!-- Scripts -->
+
+    <script>
+        feather.replace();
+
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker registered'))
+                    .catch(err => console.error('Service Worker fail', err));
+            });
+        }
+    </script>
+</body>
+
+</html>

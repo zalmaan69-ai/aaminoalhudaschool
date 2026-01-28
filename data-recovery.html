@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AL-Huda Data Recovery Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 25px;
+            background: #f7fafc;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section h2 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+
+        .status.warning {
+            background: #feebc8;
+            color: #7c2d12;
+            border: 1px solid #f6ad55;
+        }
+
+        .status.info {
+            background: #bee3f8;
+            color: #2c5282;
+            border: 1px solid #90cdf4;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .data-info {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .data-info p {
+            margin: 8px 0;
+            color: #4a5568;
+        }
+
+        .data-info strong {
+            color: #2d3748;
+        }
+
+        pre {
+            background: #2d3748;
+            color: #68d391;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .instructions {
+            background: #edf2f7;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+
+        .instructions li {
+            margin: 10px 0;
+            color: #4a5568;
+            line-height: 1.6;
+        }
+
+        .firebase-config {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .firebase-config input {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .firebase-config input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .firebase-config label {
+            display: block;
+            color: #4a5568;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔧 AL-Huda Data Recovery Tool</h1>
+        <p class="subtitle">Recover your lost data and set up Firebase properly</p>
+
+        <!-- Step 1: Check LocalStorage -->
+        <div class="section">
+            <h2>Step 1: Check for Existing Data</h2>
+            <p style="color: #4a5568; margin-bottom: 15px;">
+                Let's check if your old data is still in this browser's storage.
+            </p>
+            <button onclick="checkLocalStorage()">🔍 Check Browser Storage</button>
+            <div id="storage-result"></div>
+        </div>
+
+        <!-- Step 2: Firebase Setup -->
+        <div class="section">
+            <h2>Step 2: Get Your Firebase API Keys</h2>
+            <div class="instructions">
+                <p style="color: #2d3748; font-weight: 600; margin-bottom: 10px;">
+                    Follow these steps to get your Firebase credentials:
+                </p>
+                <ol>
+                    <li>Go to <a href="https://console.firebase.google.com" target="_blank"
+                            style="color: #667eea;">Firebase Console</a></li>
+                    <li>Click on your project (or create a new one)</li>
+                    <li>Click the gear icon ⚙️ next to "Project Overview"</li>
+                    <li>Click "Project settings"</li>
+                    <li>Scroll down to "Your apps" section</li>
+                    <li>If you don't have a web app, click the web icon <code>&lt;/&gt;</code> to create one</li>
+                    <li>Copy the config values and paste them below</li>
+                </ol>
+            </div>
+
+            <div class="firebase-config">
+                <label>API Key:</label>
+                <input type="text" id="apiKey" placeholder="AIzaSy...">
+
+                <label>Auth Domain:</label>
+                <input type="text" id="authDomain" placeholder="your-project.firebaseapp.com">
+
+                <label>Project ID:</label>
+                <input type="text" id="projectId" placeholder="your-project-id">
+
+                <label>Storage Bucket:</label>
+                <input type="text" id="storageBucket" placeholder="your-project.firebasestorage.app">
+
+                <label>Messaging Sender ID:</label>
+                <input type="text" id="messagingSenderId" placeholder="123456789">
+
+                <label>App ID:</label>
+                <input type="text" id="appId" placeholder="1:123456789:web:abc123">
+
+                <label>Measurement ID (optional):</label>
+                <input type="text" id="measurementId" placeholder="G-XXXXXXXXXX">
+
+                <button onclick="generateConfigFile()" style="margin-top: 20px;">💾 Generate config.js File</button>
+            </div>
+            <div id="config-result"></div>
+        </div>
+
+        <!-- Step 3: Export Data -->
+        <div class="section">
+            <h2>Step 3: Backup Your Data</h2>
+            <p style="color: #4a5568; margin-bottom: 15px;">
+                Export any existing data as a backup before making changes.
+            </p>
+            <button onclick="exportData()">📥 Download Data Backup</button>
+            <div id="export-result"></div>
+        </div>
+    </div>
+
+    <script>
+        function checkLocalStorage() {
+            const resultDiv = document.getElementById('storage-result');
+
+            try {
+                const data = localStorage.getItem('dugsiga_data');
+
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    const studentCount = parsed.students ? parsed.students.length : 0;
+                    const feeCount = parsed.fees ? parsed.fees.length : 0;
+                    const attendanceCount = parsed.attendance ? parsed.attendance.length : 0;
+                    const principalName = parsed.settings ? parsed.settings.principalName : 'Unknown';
+
+                    resultDiv.innerHTML = `
+                        <div class="status success">
+                            ✅ Data Found in Browser Storage!
+                        </div>
+                        <div class="data-info">
+                            <p><strong>Principal Name:</strong> ${principalName}</p>
+                            <p><strong>Total Students:</strong> ${studentCount}</p>
+                            <p><strong>Fee Records:</strong> ${feeCount}</p>
+                            <p><strong>Attendance Records:</strong> ${attendanceCount}</p>
+                            <p style="margin-top: 15px; color: #2d3748;">
+                                <strong>⚠️ Important:</strong> This data is ${principalName === 'maxamed maxamed abdi' ? 'DEMO DATA (not your real school data)' : 'potentially your real school data'}
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status error">
+                            ❌ No data found in browser storage
+                        </div>
+                        <p style="margin-top: 10px; color: #4a5568;">
+                            This means your old data is not recoverable from this browser. You'll need to start fresh or restore from a backup if you have one.
+                        </p>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ Error checking storage: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function generateConfigFile() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const authDomain = document.getElementById('authDomain').value.trim();
+            const projectId = document.getElementById('projectId').value.trim();
+            const storageBucket = document.getElementById('storageBucket').value.trim();
+            const messagingSenderId = document.getElementById('messagingSenderId').value.trim();
+            const appId = document.getElementById('appId').value.trim();
+            const measurementId = document.getElementById('measurementId').value.trim();
+
+            const resultDiv = document.getElementById('config-result');
+
+            if (!apiKey || !authDomain || !projectId || !storageBucket || !messagingSenderId || !appId) {
+                resultDiv.innerHTML = `
+                    <div class="status error" style="margin-top: 15px;">
+                        ❌ Please fill in all required fields (all except Measurement ID)
+                    </div>
+                `;
+                return;
+            }
+
+            const configContent = `// AL-Huda School System - Secure Configuration
+// This file is NOT committed to Git to prevent secret leaks.
+const CONFIG = {
+    FIREBASE: {
+        apiKey: "${apiKey}",
+        authDomain: "${authDomain}",
+        projectId: "${projectId}",
+        storageBucket: "${storageBucket}",
+        messagingSenderId: "${messagingSenderId}",
+        appId: "${appId}",
+        measurementId: "${measurementId || 'G-XXXXXXXXXX'}"
+    }
+};
+
+if (typeof window !== 'undefined') {
+    window.APP_CONFIG = CONFIG;
+}
+`;
+
+            // Create download
+            const blob = new Blob([configContent], { type: 'text/javascript' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'config.js';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            resultDiv.innerHTML = `
+                <div class="status success" style="margin-top: 15px;">
+                    ✅ config.js file downloaded! 
+                </div>
+                <div class="instructions" style="margin-top: 15px;">
+                    <p style="color: #2d3748; font-weight: 600;">Next steps:</p>
+                    <ol>
+                        <li>Replace the existing <code>config.js</code> file in your project folder with the downloaded file</li>
+                        <li>Make sure Firebase Authentication is enabled (Email/Password)</li>
+                        <li>Make sure Firestore Database is created</li>
+                        <li>Open <code>index.html</code> and register a new account</li>
+                    </ol>
+                </div>
+            `;
+        }
+
+        function exportData() {
+            const resultDiv = document.getElementById('export-result');
+
+            try {
+                const data = localStorage.getItem('dugsiga_data');
+
+                if (!data) {
+                    resultDiv.innerHTML = `
+                        <div class="status error" style="margin-top: 15px;">
+                            ❌ No data to export. Run "Check Browser Storage" first.
+                        </div>
+                    `;
+                    return;
+                }
+
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const timestamp = new Date().toISOString().split('T')[0];
+                a.download = `al-huda-backup-${timestamp}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                resultDiv.innerHTML = `
+                    <div class="status success" style="margin-top: 15px;">
+                        ✅ Data exported successfully!
+                    </div>
+                    <p style="margin-top: 10px; color: #4a5568;">
+                        Keep this backup file safe. You can import it later if needed.
+                    </p>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error" style="margin-top: 15px;">
+                        ❌ Export failed: ${error.message}
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+
+</html>
