@@ -71,25 +71,21 @@ const Store = {
 
     async loadRecoveredData() {
         try {
-            // Add a timeout to the fetch call
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
-
-            const response = await fetch('al-huda-data.json', { signal: controller.signal });
-            clearTimeout(timeoutId);
-
+            const response = await fetch('Al-huda school data.json');
             if (response.ok) {
                 const data = await response.json();
                 if (data && data.students && data.students.length > 0) {
+                    // Success! Overwrite current state with recovered data
+                    // Use a very old timestamp so Cloud Sync can overwrite it if newer data exists
                     this.state = { ...this.state, ...data, lastUpdated: 1 };
-                    this.saveToStorage(false);
+                    this.saveToStorage(false); // Don't trigger cloud sync yet, wait for Auth
                     this.logAction('System', 'Data restored from local JSON file');
                     console.log('✅ Recovered data loaded successfully');
                     return true;
                 }
             }
         } catch (e) {
-            console.log('ℹ️ Initialization: Local JSON recovery skipped or timed out.');
+            console.log('ℹ️ No recovery JSON file found or error parsing it.');
         }
         return false;
     },
@@ -326,7 +322,7 @@ const Store = {
             studentId,
             month,
             year,
-            amount: 20, // Standard fee amount: $20
+            amount: 50, // UPDATED TO $50
             amountPaid: 0,
             status: 'UNPAID',
             datePaid: null
@@ -564,28 +560,17 @@ const Store = {
         const DORMS = ["Dorm 1", "Dorm 2", "Dorm 3", "Dorm 4"];
         let idCounter = 1000;
 
-        const freeFeeDistribution = {
-            "Form 1": 3,
-            "Form 2": 3,
-            "Form 3": 5,
-            "Form 4": 4
-        };
-
         GRADES.forEach(grade => {
-            let freeRemaining = freeFeeDistribution[grade];
-
             SECTIONS.forEach(section => {
-                for (let i = 0; i < 15; i++) {
+                for (let i = 0; i < 20; i++) {
                     const fname = firstNames[Math.floor(Math.random() * firstNames.length)];
                     const lname = lastNames[Math.floor(Math.random() * lastNames.length)];
+
+                    // Assign dorms based on index to ensure even distribution
                     const dorm = DORMS[Math.floor(Math.random() * DORMS.length)];
 
-                    // Assign free fee status based on distribution count
-                    let isFree = false;
-                    if (freeRemaining > 0) {
-                        isFree = true;
-                        freeRemaining--;
-                    }
+                    // Exactly 5 students per section are "Free Fee"
+                    const isFree = i < 5;
 
                     const student = {
                         id: `STU-${idCounter++}`,
@@ -599,9 +584,9 @@ const Store = {
                         parentPhone: `615-${100000 + Math.floor(Math.random() * 900000)}`,
                         enrollmentDate: "2024-09-01",
                         isActive: true,
-                        gender: Math.random() > 0.6 ? 'Female' : 'Male', // Slightly more males as per request (70/50 approx)
+                        gender: Math.random() > 0.5 ? 'Male' : 'Female',
                         status: 'Active',
-                        performanceRemarks: ''
+                        performanceRemarks: i % 5 === 0 ? 'Excellent progress' : ''
                     };
                     this.state.students.push(student);
                 }
