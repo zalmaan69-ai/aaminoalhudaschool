@@ -3,7 +3,7 @@ const Store = {
         students: [],
         teachers: [],
         fees: [],
-        attendance: [],
+        teacherAttendance: [], // New: Store for teacher attendance
         auditLogs: [],
         settings: {
             principalName: 'abdulahi abdi',
@@ -22,20 +22,53 @@ const Store = {
             }
         },
         currentUser: null,
-        // USER LIST REMOVED FOR SECURITY. 
-        // Use Firebase Authentication for logins.
-        // Role-based access now uses Firestore document lookups.
-        // USER ROLE MAPPING (Passwords removed for security)
+        // Users now stored LOCALLY as per request (Not Secure for Production)
+        // Permissions: dashboard, attendance, students, fees, parents, exams, reports, users, free_students, private_msg, data_mgmt, messaging
         users: [
-            { email: 'director@alhudaschool.edu', role: 'owner', name: 'Director' },
-            { email: 'principal@alhudaschool.edu', role: 'principal', name: 'Principal' },
-            { email: 'teacher@alhudaschool.edu', role: 'teacher', name: 'Teacher' },
-            { email: 'accounts@alhudaschool.edu', role: 'fees', name: 'Accounts Officer' }
+            {
+                email: 'director@alhudaschool.edu',
+                password: 'password123', // Default
+                role: 'owner',
+                name: 'Director',
+                permissions: { dashboard: true, attendance: true, students: true, fees: true, parents: true, exams: true, reports: true, users: true, free_students: true, private_msg: true, data_mgmt: true, messaging: true }
+            },
+            {
+                email: 'principal@alhudaschool.edu',
+                password: 'password123',
+                role: 'principal',
+                name: 'Principal',
+                permissions: { dashboard: true, attendance: true, students: true, fees: true, parents: true, exams: true, reports: true, users: true, free_students: true, private_msg: true, data_mgmt: true, messaging: true }
+            },
+            {
+                email: 'teacher@alhudaschool.edu',
+                password: 'password123',
+                role: 'teacher',
+                name: 'Teacher',
+                permissions: { dashboard: false, attendance: true, students: false, fees: false, parents: false, exams: true, reports: false, users: false, free_students: false, private_msg: false, data_mgmt: false, messaging: false }
+            },
+            {
+                email: 'accounts@alhudaschool.edu',
+                password: 'password123',
+                role: 'fees',
+                name: 'Accounts Officer',
+                permissions: { dashboard: true, attendance: false, students: true, fees: true, parents: true, exams: false, reports: true, users: false, free_students: true, private_msg: false, data_mgmt: false, messaging: false }
+            }
         ],
         academicYears: ["2025-2026", "2026-2027"],
         currentYear: "2025-2026",
         exams: [],
-        dataVersion: 8,
+
+        // --- NEW FEATURES ---
+        classes: [
+            { name: "Form 1", isFinal: false, hasSections: true, sections: ["A", "B"] },
+            { name: "Form 2", isFinal: false, hasSections: true, sections: ["A", "B"] },
+            { name: "Form 3", isFinal: false, hasSections: true, sections: ["A", "B"] },
+            { name: "Form 4", isFinal: true, hasSections: true, sections: ["A", "B"] }
+        ],
+        salaries: [], // { id, teacherId, amount, date, month, status: 'Paid' }
+        dashboardCards: [], // { title, value, icon, color }
+
+        dataVersion: 9, // Incremented
         lastUpdated: 0 // Used for robust conflict resolution
     },
 
@@ -71,25 +104,21 @@ const Store = {
 
     async loadRecoveredData() {
         try {
-            // Add a timeout to the fetch call
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
-
-            const response = await fetch('al-huda-data.json', { signal: controller.signal });
-            clearTimeout(timeoutId);
-
+            const response = await fetch('Al-huda school data.json');
             if (response.ok) {
                 const data = await response.json();
                 if (data && data.students && data.students.length > 0) {
+                    // Success! Overwrite current state with recovered data
+                    // Use a very old timestamp so Cloud Sync can overwrite it if newer data exists
                     this.state = { ...this.state, ...data, lastUpdated: 1 };
-                    this.saveToStorage(false);
+                    this.saveToStorage(false); // Don't trigger cloud sync yet, wait for Auth
                     this.logAction('System', 'Data restored from local JSON file');
                     console.log('✅ Recovered data loaded successfully');
                     return true;
                 }
             }
         } catch (e) {
-            console.log('ℹ️ Initialization: Local JSON recovery skipped or timed out.');
+            console.log('ℹ️ No recovery JSON file found or error parsing it.');
         }
         return false;
     },
@@ -310,6 +339,7 @@ const Store = {
 
         this.logAction('Add Student', `Added student ${newStudent.fullName}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
         this.saveToStorage();
+        this.saveToStorage();
         return newStudent;
     },
 
@@ -326,7 +356,7 @@ const Store = {
             studentId,
             month,
             year,
-            amount: 20, // Standard fee amount: $20
+            amount: 20, // UPDATED TO $20
             amountPaid: 0,
             status: 'UNPAID',
             datePaid: null
@@ -336,385 +366,556 @@ const Store = {
         return newFee;
     },
 
-    updateStudent(updatedData) {
-        const index = this.state.students.findIndex(s => s.id === updatedData.id);
-        if (index !== -1) {
-            this.state.students[index] = { ...this.state.students[index], ...updatedData };
-            this.logAction('Update Student', `Updated student ${updatedData.fullName}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
-            this.saveToStorage();
-            return true;
-        }
-        return false;
-    },
-
-    deleteStudent(id) {
-        const index = this.state.students.findIndex(s => s.id === id);
-        if (index !== -1) {
-            const name = this.state.students[index].fullName;
-            this.state.students.splice(index, 1);
-            this.logAction('Delete Student', `Deleted student ${name}`, 'System');
-            this.saveToStorage();
-            return true;
-        }
-        return false;
-    },
-
-    // --- Teachers ---
-    getTeachers() {
-        return this.state.teachers || [];
-    },
-
-    addTeacher(teacher) {
-        const newTeacher = {
-            id: "TCH-" + Date.now().toString().slice(-6),
-            ...teacher,
-            status: 'Active',
-            joinDate: new Date().toISOString().split('T')[0]
-        };
-        if (!this.state.teachers) this.state.teachers = [];
-        this.state.teachers.push(newTeacher);
-        this.logAction('Add Teacher', `Added teacher ${newTeacher.name}`, 'System');
-        this.saveToStorage();
-        return newTeacher;
-    },
-
-    updateTeacher(updatedData) {
-        if (!this.state.teachers) return false;
-        const index = this.state.teachers.findIndex(t => t.id === updatedData.id);
-        if (index !== -1) {
-            this.state.teachers[index] = { ...this.state.teachers[index], ...updatedData };
-            this.logAction('Update Teacher', `Updated teacher ${updatedData.name}`, 'System');
-            this.saveToStorage();
-            return true;
-        }
-        return false;
-    },
-
-    deleteTeacher(id) {
-        if (!this.state.teachers) return false;
-        const index = this.state.teachers.findIndex(t => t.id === id);
-        if (index !== -1) {
-            this.state.teachers.splice(index, 1);
-            this.logAction('Delete Teacher', `Deleted teacher ${id}`, 'System');
-            this.saveToStorage();
-            return true;
-        }
-        return false;
-    },
-
-    // --- Fees ---
-    getFees() {
+    // --- Teacher Attendance (New) ---
+    getTeacherAttendance() {
         const year = this.state.currentYear;
-        return this.state.fees.filter(f => f.year === year);
+        return this.state.teacherAttendance.filter(a => a.date.startsWith(year.split('-')[0]) || a.date.startsWith(year.split('-')[1]));
     },
 
-    getAllFees() { // Helper for cross-year reporting if needed
-        return this.state.fees;
-    },
+    recordTeacherAttendance(teacherId, status, date) {
+        if (!this.state.teacherAttendance) this.state.teacherAttendance = [];
 
-    toggleFeeStatus(feeId) {
-        const fee = this.state.fees.find(f => f.id === feeId);
-        if (fee) {
-            const oldStatus = fee.status;
-            // Simple toggle between PAID and UNPAID as per user request
-            fee.status = (fee.status === 'PAID') ? 'UNPAID' : 'PAID';
-            fee.amountPaid = fee.status === 'PAID' ? fee.amount : 0;
-            fee.datePaid = fee.status === 'PAID' ? new Date().toISOString() : null;
-
-            this.logAction('Update Fee', `Changed fee ${feeId} status from ${oldStatus} to ${fee.status}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
-            this.saveToStorage(); // This triggers the state-updated event -> Dashboard refresh
-        }
-    },
-
-    // --- Settings ---
-    getSettings() {
-        if (!this.state.settings) {
-            this.state.settings = {
-                principalName: 'Sheikh Hassan Ali',
-                headTeachers: { "Form 1": "Mr. Ahmed Nur", "Form 2": "Ms. Fatima Farah", "Form 3": "Mr. Ali Gedi", "Form 4": "Ms. Aisha Dualeh" }
-            };
-        }
-        return this.state.settings;
-    },
-
-    updateSettings(newSettings) {
-        this.state.settings = { ...this.state.settings, ...newSettings };
-        this.logAction('Settings Update', 'Updated school leadership settings', sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
-        this.saveToStorage();
-    },
-
-    // --- Messaging ---
-    sendMessage(phone, message, sender) {
-        // Simulation: Just log to audit
-        this.logAction('SMS Simulation', `Sent to ${phone} from ${sender}: ${message.substring(0, 30)}...`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
-        return true;
-    },
-
-    // --- Attendance ---
-    getAttendance() {
-        const year = this.state.currentYear;
-        // Attendance records now stored with date string YYYY-MM-DD
-        // Filter by the year part of the date
-        return this.state.attendance.filter(a => a.date.startsWith(year.split('-')[0]) || a.date.startsWith(year.split('-')[1]));
-    },
-
-    recordAttendance(studentId, status, date) {
-        const existingIndex = this.state.attendance.findIndex(
-            a => a.studentId === studentId && a.date === date
+        const existingIndex = this.state.teacherAttendance.findIndex(
+            a => a.teacherId === teacherId && a.date === date
         );
 
         if (existingIndex >= 0) {
-            this.state.attendance[existingIndex].status = status;
+            this.state.teacherAttendance[existingIndex].status = status;
         } else {
-            this.state.attendance.push({ studentId, date, status, year: this.state.currentYear });
+            this.state.teacherAttendance.push({ teacherId, date, status, year: this.state.currentYear });
         }
-        this.logAction('Attendance', `Marked ${studentId} as ${status} for ${date} (Year: ${this.state.currentYear})`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+        this.logAction('Teacher Attendance', `Marked ${teacherId} as ${status} for ${date}`, 'System');
         this.saveToStorage();
     },
 
-    // --- Exam Definitions (New) ---
-    getExams() {
-        return this.state.exams || [];
-    },
+    // --- User Management (New) ---
+    addNewUser(user) {
+        const existing = this.state.users.find(u => u.email === user.email);
+        if (existing) return false;
 
-    addExam(exam) {
-        if (!this.state.exams) this.state.exams = [];
-        this.state.exams.push(exam);
-        this.logAction('Create Exam', `Created exam: ${exam.name}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+        this.state.users.push(user);
+        this.logAction('User Mgmt', `Added new user ${user.email}`, 'Admin');
         this.saveToStorage();
+        return true;
     },
 
-    updateExam(id, updates) {
-        const exam = this.state.exams.find(e => e.id === id);
-        if (exam) {
-            Object.assign(exam, updates);
-            this.logAction('Update Exam', `Updated exam: ${exam.name}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
-            this.saveToStorage();
-        }
-    },
-
-    deleteExam(id) {
-        this.state.exams = this.state.exams.filter(e => e.id !== id);
-        this.logAction('Delete Exam', `Deleted exam ID: ${id}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
-        this.saveToStorage();
-    },
-
-    // Legacy Exam Records (if needed, or can be adapted)
-    getExamRecords(grade, section, subject, term) {
-        // ... legacy logic, or just return empty
-        return [];
-    },
-
-
-    saveExamScores(scores) {
-        scores.forEach(newRecord => {
-            const index = this.state.exams.findIndex(e =>
-                e.studentId === newRecord.studentId &&
-                e.subject === newRecord.subject &&
-                e.term === newRecord.term
-            );
-
-            if (index !== -1) {
-                this.state.exams[index] = { ...this.state.exams[index], ...newRecord };
-            } else {
-                this.state.exams.push(newRecord);
-            }
-        });
-        this.logAction('Exams', `Saved scores for ${scores[0].subject} (${scores[0].term})`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
-        this.saveToStorage();
-    },
-
-    getStudentAttendanceStats(studentId) {
-        const records = this.state.attendance.filter(a => a.studentId === studentId);
-        const present = records.filter(a => a.status === 'Present').length;
-        const total = records.length;
-        return total === 0 ? 0 : Math.round((present / total) * 100);
-    },
-
-    // --- Seeding ---
-    seedData() {
-        this.state.dataVersion = 5;
-        this.state.settings = {
-            principalName: 'abdulahi abdi',
-            headTeachers: {
-                "Form 1": "Mr. Ahmed Nur",
-                "Form 2": "Ms. Fatima Farah",
-                "Form 3": "Mr. Ali Gedi",
-                "Form 4": "Ms. Aisha Dualeh"
-            },
-            messaging: {
-                senderNumber: '0612373534',
-                templates: {
-                    reminder: '(waalidiinta qaaliga ah ee ardeyda dugsiga AL-HUDA , waxaaan idin xasuusineynaa in uu soo dhawaadey waqtigii lacag bixinta bisha , fadlan nagu soo hagaaji waqtigeeeda , mahadsanidiin)',
-                    deadline: 'waalidiinta qaaliga ah ee ardeyda dugsiga AL-HUDA , waxaaan idin ogeysiineynaa in lajoogo waqtigii lacag bixinta bisha , fadlan nagu soo hagaaji marka aad awoodan , mahadsanidiin.'
-                }
-            }
-        };
-
-        const firstNames = [
-            "Ahmed", "Mohamed", "Ali", "Hassan", "Yusuf", "Ibrahim", "Abdi", "Omar", "Osman", "Khalid",
-            "Fatima", "Aisha", "Khadija", "Mariam", "Leyla", "Zahra", "Hibo", "Sahra", "Naima", "Fowzia"
-        ];
-        const lastNames = [
-            "Nur", "Farah", "Gedi", "Warsame", "Dualeh", "Abdi", "Hassan", "Ali", "Mohamed", "Omar"
-        ];
-
-        const GRADES = ["Form 1", "Form 2", "Form 3", "Form 4"];
-        const SECTIONS = ["A", "B"];
-        const DORMS = ["Dorm 1", "Dorm 2", "Dorm 3", "Dorm 4"];
-        let idCounter = 1000;
-
-        const freeFeeDistribution = {
-            "Form 1": 3,
-            "Form 2": 3,
-            "Form 3": 5,
-            "Form 4": 4
-        };
-
-        GRADES.forEach(grade => {
-            let freeRemaining = freeFeeDistribution[grade];
-
-            SECTIONS.forEach(section => {
-                for (let i = 0; i < 15; i++) {
-                    const fname = firstNames[Math.floor(Math.random() * firstNames.length)];
-                    const lname = lastNames[Math.floor(Math.random() * lastNames.length)];
-                    const dorm = DORMS[Math.floor(Math.random() * DORMS.length)];
-
-                    // Assign free fee status based on distribution count
-                    let isFree = false;
-                    if (freeRemaining > 0) {
-                        isFree = true;
-                        freeRemaining--;
-                    }
-
-                    const student = {
-                        id: `STU-${idCounter++}`,
-                        listNumber: i + 1,
-                        fullName: `${fname} ${lname} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
-                        grade: grade,
-                        section: section,
-                        dorm: dorm,
-                        isFree: isFree,
-                        parentName: `${lname} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
-                        parentPhone: `615-${100000 + Math.floor(Math.random() * 900000)}`,
-                        enrollmentDate: "2024-09-01",
-                        isActive: true,
-                        gender: Math.random() > 0.6 ? 'Female' : 'Male', // Slightly more males as per request (70/50 approx)
-                        status: 'Active',
-                        performanceRemarks: ''
-                    };
-                    this.state.students.push(student);
-                }
-            });
-        });
-
-        // Seed Attendance (Last 15 days)
-        const today = new Date();
-        const dates = [];
-        for (let i = 0; i < 15; i++) {
-            const d = new Date(today);
-            d.setDate(d.getDate() - i);
-            dates.push(d.toISOString().split('T')[0]);
-        }
-
-        this.state.students.forEach(s => {
-            dates.forEach(date => {
-                const rand = Math.random();
-                let status = "Present";
-                if (rand > 0.90) status = "Absent";
-                else if (rand > 0.82) status = "Late";
-                this.state.attendance.push({ studentId: s.id, date: date, status: status });
-            });
-        });
-
-        // Seed Fees - strictly PAID or UNPAID
-        const MONTHS = ["January", "February", "March"];
-        this.state.students.forEach(s => {
-            if (s.isFree) return; // Skip free students for fees
-
-            MONTHS.forEach((month, idx) => {
-                const isPaid = Math.random() > 0.4;
-                this.state.fees.push({
-                    id: "FEE-" + Math.random().toString(36).substr(2, 6).toUpperCase(),
-                    studentId: s.id,
-                    month: month,
-                    amount: 20,
-                    amountPaid: isPaid ? 20 : 0,
-                    status: isPaid ? "PAID" : "UNPAID",
-                    dueDate: `2026-0${idx + 1}-05`
-                });
-            });
-        });
-
-        this.logAction('System', 'Database initialized with AL-Huda data version 4 (Dorms & Settings)');
-
-        // Seed Teachers
-        if (!this.state.teachers || this.state.teachers.length === 0) {
-            this.state.teachers = [
-                { id: 'KT001', name: 'Abdirahmaan Ali Aadan', phone: '+252613609678', gender: 'Male', salary: 300.00, subject: 'Mathematics' },
-                { id: 'KT002', name: 'Fardowsa Mohamed', phone: '+252615554321', gender: 'Female', salary: 280.00, subject: 'Science' },
-                { id: 'KT003', name: 'Hassan Omar', phone: '+252617778899', gender: 'Male', salary: 320.00, subject: 'English' },
-                { id: 'KT004', name: 'Amina Yussuf', phone: '+252612223344', gender: 'Female', salary: 300.00, subject: 'Islamic Studies' }
-            ];
-        }
-
-        // Seed Exams if empty
-        if (!this.state.exams || this.state.exams.length === 0) {
-            this.state.exams = [
-                {
-                    id: 'EXAM-001',
-                    name: 'Test Exam 2025-09-12 19:44:43',
-                    type: 'Teacher-based',
-                    term: 'Term 1',
-                    weight: 33.33,
-                    subjects: 3,
-                    students: 4,
-                    status: 'Open',
-                    date: '2025-09-12T19:44:43'
-                },
-                {
-                    id: 'EXAM-002',
-                    name: 'imtixaan',
-                    type: 'School Import',
-                    term: 'Final',
-                    weight: 100.00,
-                    subjects: 3,
-                    students: 3,
-                    status: 'Open',
-                    date: '2025-09-10T10:00:00'
-                },
-                {
-                    id: 'EXAM-003',
-                    name: 'Final Exam',
-                    type: 'Final',
-                    term: 'Final',
-                    weight: 100.00,
-                    subjects: 3,
-                    students: 0,
-                    status: 'Open',
-                    date: '2025-10-01T08:00:00'
-                }
-            ];
-        }
-
-        this.saveToStorage();
-    },
-
-    exportData() {
-        return JSON.stringify(this.state);
-    },
-
-    importData(jsonString) {
-        try {
-            const data = JSON.parse(jsonString);
-            this.state = data;
+    updateUser(email, updates) {
+        const index = this.state.users.findIndex(u => u.email === email);
+        if (index !== -1) {
+            this.state.users[index] = { ...this.state.users[index], ...updates };
+            this.logAction('User Mgmt', `Updated user ${email}`, 'Admin');
             this.saveToStorage();
             return true;
-        } catch (e) {
-            console.error('Invalid import data', e);
-            return false;
         }
+        return false;
     },
+
+    deleteUser(email) {
+        const index = this.state.users.findIndex(u => u.email === email);
+        if (index !== -1) {
+            this.state.users.splice(index, 1);
+            this.logAction('User Mgmt', `Deleted user ${email}`, 'Admin');
+            this.saveToStorage();
+            return true;
+        }
+        return false;
+    },
+
+    // --- Students ---
+    const index = this.state.students.findIndex(s => s.id === updatedData.id);
+    if(index !== -1) {
+        this.state.students[index] = { ...this.state.students[index], ...updatedData };
+this.logAction('Update Student', `Updated student ${updatedData.fullName}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+this.saveToStorage();
+return true;
+        }
+return false;
+    },
+
+deleteStudent(id) {
+    const index = this.state.students.findIndex(s => s.id === id);
+    if (index !== -1) {
+        const name = this.state.students[index].fullName;
+        this.state.students.splice(index, 1);
+        this.logAction('Delete Student', `Deleted student ${name}`, 'System');
+        this.saveToStorage();
+        return true;
+    }
+    return false;
+},
+
+// --- Teachers ---
+getTeachers() {
+    return this.state.teachers || [];
+},
+
+addTeacher(teacher) {
+    const newTeacher = {
+        id: "TCH-" + Date.now().toString().slice(-6),
+        ...teacher,
+        status: 'Active',
+        joinDate: new Date().toISOString().split('T')[0]
+    };
+    if (!this.state.teachers) this.state.teachers = [];
+    this.state.teachers.push(newTeacher);
+    this.logAction('Add Teacher', `Added teacher ${newTeacher.name}`, 'System');
+    this.saveToStorage();
+    return newTeacher;
+},
+
+updateTeacher(updatedData) {
+    if (!this.state.teachers) return false;
+    const index = this.state.teachers.findIndex(t => t.id === updatedData.id);
+    if (index !== -1) {
+        this.state.teachers[index] = { ...this.state.teachers[index], ...updatedData };
+        this.logAction('Update Teacher', `Updated teacher ${updatedData.name}`, 'System');
+        this.saveToStorage();
+        return true;
+    }
+    return false;
+},
+
+deleteTeacher(id) {
+    if (!this.state.teachers) return false;
+    const index = this.state.teachers.findIndex(t => t.id === id);
+    if (index !== -1) {
+        this.state.teachers.splice(index, 1);
+        this.logAction('Delete Teacher', `Deleted teacher ${id}`, 'System');
+        this.saveToStorage();
+        return true;
+    }
+    return false;
+},
+
+// --- Fees ---
+getFees() {
+    const year = this.state.currentYear;
+    return this.state.fees.filter(f => f.year === year);
+},
+
+getAllFees() { // Helper for cross-year reporting if needed
+    return this.state.fees;
+},
+
+toggleFeeStatus(feeId) {
+    const fee = this.state.fees.find(f => f.id === feeId);
+    if (fee) {
+        const oldStatus = fee.status;
+        // Simple toggle between PAID and UNPAID as per user request
+        fee.status = (fee.status === 'PAID') ? 'UNPAID' : 'PAID';
+        fee.amountPaid = fee.status === 'PAID' ? fee.amount : 0;
+        fee.datePaid = fee.status === 'PAID' ? new Date().toISOString() : null;
+
+        this.logAction('Update Fee', `Changed fee ${feeId} status from ${oldStatus} to ${fee.status}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+        this.saveToStorage(); // This triggers the state-updated event -> Dashboard refresh
+    }
+},
+
+// --- Settings ---
+getSettings() {
+    if (!this.state.settings) {
+        this.state.settings = {
+            principalName: 'Sheikh Hassan Ali',
+            headTeachers: { "Form 1": "Mr. Ahmed Nur", "Form 2": "Ms. Fatima Farah", "Form 3": "Mr. Ali Gedi", "Form 4": "Ms. Aisha Dualeh" }
+        };
+    }
+    return this.state.settings;
+},
+
+updateSettings(newSettings) {
+    this.state.settings = { ...this.state.settings, ...newSettings };
+    this.logAction('Settings Update', 'Updated school leadership settings', sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+    this.saveToStorage();
+},
+
+// --- Messaging ---
+sendMessage(phone, message, sender) {
+    // Simulation: Just log to audit
+    this.logAction('SMS Simulation', `Sent to ${phone} from ${sender}: ${message.substring(0, 30)}...`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+    return true;
+},
+
+// --- Attendance ---
+getAttendance() {
+    const year = this.state.currentYear;
+    // Attendance records now stored with date string YYYY-MM-DD
+    // Filter by the year part of the date
+    return this.state.attendance.filter(a => a.date.startsWith(year.split('-')[0]) || a.date.startsWith(year.split('-')[1]));
+},
+
+recordAttendance(studentId, status, date) {
+    const existingIndex = this.state.attendance.findIndex(
+        a => a.studentId === studentId && a.date === date
+    );
+
+    if (existingIndex >= 0) {
+        this.state.attendance[existingIndex].status = status;
+    } else {
+        this.state.attendance.push({ studentId, date, status, year: this.state.currentYear });
+    }
+    this.logAction('Attendance', `Marked ${studentId} as ${status} for ${date} (Year: ${this.state.currentYear})`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+    this.saveToStorage();
+},
+
+// --- Exam Definitions (New) ---
+getExams() {
+    return this.state.exams || [];
+},
+
+addExam(exam) {
+    if (!this.state.exams) this.state.exams = [];
+    this.state.exams.push(exam);
+    this.logAction('Create Exam', `Created exam: ${exam.name}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+    this.saveToStorage();
+},
+
+updateExam(id, updates) {
+    const exam = this.state.exams.find(e => e.id === id);
+    if (exam) {
+        Object.assign(exam, updates);
+        this.logAction('Update Exam', `Updated exam: ${exam.name}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+        this.saveToStorage();
+    }
+},
+
+deleteExam(id) {
+    this.state.exams = this.state.exams.filter(e => e.id !== id);
+    this.logAction('Delete Exam', `Deleted exam ID: ${id}`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+    this.saveToStorage();
+},
+
+// Legacy Exam Records (if needed, or can be adapted)
+getExamRecords(grade, section, subject, term) {
+    // ... legacy logic, or just return empty
+    return [];
+},
+
+
+saveExamScores(scores) {
+    scores.forEach(newRecord => {
+        const index = this.state.exams.findIndex(e =>
+            e.studentId === newRecord.studentId &&
+            e.subject === newRecord.subject &&
+            e.term === newRecord.term
+        );
+
+        if (index !== -1) {
+            this.state.exams[index] = { ...this.state.exams[index], ...newRecord };
+        } else {
+            this.state.exams.push(newRecord);
+        }
+    });
+    this.logAction('Exams', `Saved scores for ${scores[0].subject} (${scores[0].term})`, sessionStorage.getItem('dugsiga_user') ? JSON.parse(sessionStorage.getItem('dugsiga_user')).username : 'System');
+    this.saveToStorage();
+},
+
+getStudentAttendanceStats(studentId) {
+    const records = this.state.attendance.filter(a => a.studentId === studentId);
+    const present = records.filter(a => a.status === 'Present').length;
+    const total = records.length;
+    return total === 0 ? 0 : Math.round((present / total) * 100);
+},
+
+// --- Seeding ---
+seedData() {
+    this.state.dataVersion = 5;
+    this.state.settings = {
+        principalName: 'abdulahi abdi',
+        headTeachers: {
+            "Form 1": "Mr. Ahmed Nur",
+            "Form 2": "Ms. Fatima Farah",
+            "Form 3": "Mr. Ali Gedi",
+            "Form 4": "Ms. Aisha Dualeh"
+        },
+        messaging: {
+            senderNumber: '0612373534',
+            templates: {
+                reminder: '(waalidiinta qaaliga ah ee ardeyda dugsiga AL-HUDA , waxaaan idin xasuusineynaa in uu soo dhawaadey waqtigii lacag bixinta bisha , fadlan nagu soo hagaaji waqtigeeeda , mahadsanidiin)',
+                deadline: 'waalidiinta qaaliga ah ee ardeyda dugsiga AL-HUDA , waxaaan idin ogeysiineynaa in lajoogo waqtigii lacag bixinta bisha , fadlan nagu soo hagaaji marka aad awoodan , mahadsanidiin.'
+            }
+        }
+    };
+
+    const firstNames = [
+        "Ahmed", "Mohamed", "Ali", "Hassan", "Yusuf", "Ibrahim", "Abdi", "Omar", "Osman", "Khalid",
+        "Fatima", "Aisha", "Khadija", "Mariam", "Leyla", "Zahra", "Hibo", "Sahra", "Naima", "Fowzia"
+    ];
+    const lastNames = [
+        "Nur", "Farah", "Gedi", "Warsame", "Dualeh", "Abdi", "Hassan", "Ali", "Mohamed", "Omar"
+    ];
+
+    const GRADES = ["Form 1", "Form 2", "Form 3", "Form 4"];
+    const SECTIONS = ["A", "B"];
+    const DORMS = ["Dorm 1", "Dorm 2", "Dorm 3", "Dorm 4"];
+    let idCounter = 1000;
+
+    GRADES.forEach(grade => {
+        SECTIONS.forEach(section => {
+            for (let i = 0; i < 20; i++) {
+                const fname = firstNames[Math.floor(Math.random() * firstNames.length)];
+                const lname = lastNames[Math.floor(Math.random() * lastNames.length)];
+
+                // Assign dorms based on index to ensure even distribution
+                const dorm = DORMS[Math.floor(Math.random() * DORMS.length)];
+
+                // Exactly 5 students per section are "Free Fee"
+                const isFree = i < 5;
+
+                const student = {
+                    id: `STU-${idCounter++}`,
+                    listNumber: i + 1,
+                    fullName: `${fname} ${lname} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                    grade: grade,
+                    section: section,
+                    dorm: dorm,
+                    isFree: isFree,
+                    parentName: `${lname} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                    parentPhone: `615-${100000 + Math.floor(Math.random() * 900000)}`,
+                    enrollmentDate: "2024-09-01",
+                    isActive: true,
+                    gender: Math.random() > 0.5 ? 'Male' : 'Female',
+                    status: 'Active',
+                    performanceRemarks: i % 5 === 0 ? 'Excellent progress' : ''
+                };
+                this.state.students.push(student);
+            }
+        });
+    });
+
+    // Seed Attendance (Last 15 days)
+    const today = new Date();
+    const dates = [];
+    for (let i = 0; i < 15; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        dates.push(d.toISOString().split('T')[0]);
+    }
+
+    this.state.students.forEach(s => {
+        dates.forEach(date => {
+            const rand = Math.random();
+            let status = "Present";
+            if (rand > 0.90) status = "Absent";
+            else if (rand > 0.82) status = "Late";
+            this.state.attendance.push({ studentId: s.id, date: date, status: status });
+        });
+    });
+
+    // Seed Fees - strictly PAID or UNPAID
+    const MONTHS = ["January", "February", "March"];
+    this.state.students.forEach(s => {
+        if (s.isFree) return; // Skip free students for fees
+
+        MONTHS.forEach((month, idx) => {
+            const isPaid = Math.random() > 0.4;
+            this.state.fees.push({
+                id: "FEE-" + Math.random().toString(36).substr(2, 6).toUpperCase(),
+                studentId: s.id,
+                month: month,
+                amount: 20,
+                amountPaid: isPaid ? 20 : 0,
+                status: isPaid ? "PAID" : "UNPAID",
+                dueDate: `2026-0${idx + 1}-05`
+            });
+        });
+    });
+
+    this.logAction('System', 'Database initialized with AL-Huda data version 4 (Dorms & Settings)');
+
+    // Seed Teachers
+    if (!this.state.teachers || this.state.teachers.length === 0) {
+        this.state.teachers = [
+            { id: 'KT001', name: 'Abdirahmaan Ali Aadan', phone: '+252613609678', gender: 'Male', salary: 300.00, subject: 'Mathematics' },
+            { id: 'KT002', name: 'Fardowsa Mohamed', phone: '+252615554321', gender: 'Female', salary: 280.00, subject: 'Science' },
+            { id: 'KT003', name: 'Hassan Omar', phone: '+252617778899', gender: 'Male', salary: 320.00, subject: 'English' },
+            { id: 'KT004', name: 'Amina Yussuf', phone: '+252612223344', gender: 'Female', salary: 300.00, subject: 'Islamic Studies' }
+        ];
+    }
+
+    // Seed Exams - CLEARED as per new requirement
+    this.state.exams = [];
+
+    this.saveToStorage();
+},
+
+// --- Teacher Attendance ---
+getTeacherAttendance() {
+    return this.state.teacherAttendance || [];
+},
+
+recordTeacherAttendance(teacherId, status, date) {
+    let record = this.state.teacherAttendance.find(a => a.teacherId === teacherId && a.date === date);
+    if (record) {
+        record.status = status;
+    } else {
+        this.state.teacherAttendance.push({ teacherId, date, status });
+    }
+    this.saveToStorage();
+},
+
+// --- Exams ---
+saveExamScores(scores) {
+    scores.forEach(s => {
+        const existingIndex = this.state.exams.findIndex(e =>
+            e.studentId === s.studentId &&
+            e.subject === s.subject &&
+            e.term === s.term
+        );
+
+        if (existingIndex >= 0) {
+            this.state.exams[existingIndex] = { ...this.state.exams[existingIndex], ...s };
+        } else {
+            this.state.exams.push(s);
+        }
+    });
+    this.logAction('Exams', `Updated ${scores.length} exam records`, 'Teacher');
+    this.saveToStorage();
+},
+
+getExamRecords(grade, section, subject, term) {
+    return this.state.exams.filter(e =>
+        e.grade === grade &&
+        e.section === section &&
+        e.subject === subject &&
+        e.term === term
+    );
+},
+
+getStudentMarks(studentId, term) {
+    return this.state.exams.filter(e => e.studentId === studentId && e.term === term)
+        .map(e => ({ subject: e.subject, mark: e.score }));
+},
+
+saveStudentMark(studentId, subject, score, term) {
+    const existingIndex = this.state.exams.findIndex(e =>
+        e.studentId === studentId &&
+        e.subject === subject &&
+        e.term === term
+    );
+
+    const record = {
+        studentId,
+        subject,
+        score: parseFloat(score),
+        term
+    };
+
+    if (existingIndex === -1) {
+        const s = this.getStudent(studentId);
+        if (s) {
+            record.grade = s.grade;
+            record.section = s.section;
+        }
+    }
+
+    if (existingIndex >= 0) {
+        this.state.exams[existingIndex] = { ...this.state.exams[existingIndex], ...record };
+    } else {
+        this.state.exams.push(record);
+    }
+    this.saveToStorage();
+},
+
+// --- Helpers ---
+getStudent(id) {
+    return this.state.students.find(s => s.id === id);
+},
+
+deleteTeacher(id) {
+    this.state.teachers = this.state.teachers.filter(t => t.id !== id);
+    this.saveToStorage();
+},
+
+deleteUser(email) {
+    this.state.users = this.state.users.filter(u => u.email !== email);
+    this.saveToStorage();
+},
+
+
+addNewUser(user) {
+    this.state.users.push(user);
+    this.saveToStorage();
+},
+
+// --- Classes & Sections ---
+getClasses() {
+    return this.state.classes || [];
+},
+
+saveClasses(classes) {
+    this.state.classes = classes;
+    this.saveToStorage();
+},
+
+addClass(name) {
+    if (!this.state.classes.find(c => c.name === name)) {
+        this.state.classes.push({ name, isFinal: false, hasSections: true, sections: [] });
+        this.saveToStorage();
+        return true;
+    }
+    return false;
+},
+
+deleteClass(name) {
+    this.state.classes = this.state.classes.filter(c => c.name !== name);
+    this.saveToStorage();
+},
+
+updateClass(oldName, newData) {
+    const index = this.state.classes.findIndex(c => c.name === oldName);
+    if (index !== -1) {
+        this.state.classes[index] = { ...this.state.classes[index], ...newData };
+        this.saveToStorage();
+    }
+},
+
+// --- Salaries ---
+getSalaries() {
+    return this.state.salaries || [];
+},
+
+recordSalaryPayment(payment) {
+    // payment: { id, teacherId, amount, date, month, status: 'Paid' }
+    if (!payment.id) payment.id = 'SAL-' + Date.now();
+    this.state.salaries.push(payment);
+    this.logAction('Finance', `Recorded salary payment for ${payment.month}`, 'Admin');
+    this.saveToStorage();
+},
+
+// --- Dashboard Customization ---
+getDashboardCards() {
+    return this.state.dashboardCards || [];
+},
+
+addDashboardCard(card) {
+    this.state.dashboardCards.push(card);
+    this.saveToStorage();
+},
+
+// --- Helper for Persistent Date ---
+getLastAttendanceDate() {
+    return localStorage.getItem('last_attendance_date');
+},
+
+setLastAttendanceDate(date) {
+    localStorage.setItem('last_attendance_date', date);
+},
+
+exportData() {
+    return JSON.stringify(this.state);
+},
+
+importData(jsonString) {
+    try {
+        const data = JSON.parse(jsonString);
+        this.state = data;
+        this.saveToStorage();
+        return true;
+    } catch (e) {
+        console.error('Invalid import data', e);
+        return false;
+    }
+},
 };
 
 window.Store = Store;
